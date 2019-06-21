@@ -44,8 +44,18 @@ object TestCases extends TestSuite {
         ) ==> None
       }
 
-      test("repeat 1 2") {
+      test("mutual isEven"){
+        (0 to 9).foreach { i =>
+          checkResult(isEven.call(i), i % 2 == 0) ==> None
+        }
+      }
 
+      test("repeat 1 2") {
+        // todo: call eager on take n of an inifite list
+        checkResult(let("xs", list(1, 2, "xs")) {
+          import StandardLib._
+          eager call take.call(0, "xs")
+        }, unit) ==> None
       }
 
       test("out of scope error") {

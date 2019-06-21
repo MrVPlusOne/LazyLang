@@ -112,8 +112,8 @@ object StandardLib {
                   .call(isUnit.call("xs"))
                   .call("acc")
                   .call(
-                    "rec".calls(
-                      "f".calls(
+                    "rec".call(
+                      "f".call(
                         fst.call("xs"),
                         "acc",
                       ),
@@ -122,7 +122,7 @@ object StandardLib {
                   )
             ),
           ) {
-            "rec".calls("x0", "xs")
+            "rec".call("x0", "xs")
           })),
   )("foldr")
 
@@ -132,13 +132,13 @@ object StandardLib {
       ("xs" ~>
         choose
           .call(
-            or.calls(isUnit.call("xs"), isZero.call("n")))
+            or.call(isUnit.call("xs"), isZero.call("n")))
           .call("xs")
           .call(
             pair(
               fst.call("xs"),
-              "take".calls(
-                plus.calls("n", -1),
+              "take".call(
+                plus.call("n", -1),
                 snd.call("xs"),
               ),
             ),

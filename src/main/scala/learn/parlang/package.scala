@@ -12,14 +12,15 @@ package object parlang {
   type Name = String
 
   sealed trait PExpr {
-    def call(x: PExpr): PExpr = Apply(this, x)
 
-    def calls(xs: PExpr*): PExpr = xs.foldLeft(this)(_.call(_))
+    def call(xs: PExpr*): PExpr = xs.foldLeft(this)(Apply)
 
     override def toString: String = this match {
       case Var(id) => id
-      case Let(v, expr, body) =>
-        s"let $v = $expr in $body"
+      case Let(bindings, body) =>
+        val bindingList =
+          bindings.map { case (v, e) => s"$v = $e" }.mkString(", ")
+        s"(let $bindingList in $body)"
       case Lambda(v, expr) =>
         s"(λ $v. $expr)"
       case Apply(f, x) =>
@@ -42,8 +43,11 @@ package object parlang {
       lazy val freeVars: Set[Name] = Set(id)
     }
 
-    case class Let(v: Name, expr: PExpr, body: PExpr) extends PExpr {
-      lazy val freeVars: Set[Name] = (expr.freeVars ++ body.freeVars) - v
+    case class Let(bindings: List[(Name, PExpr)], body: PExpr) extends PExpr {
+      lazy val freeVars: Set[Name] = {
+        val (names, exprs) = bindings.unzip
+        (exprs.foldMap(_.freeVars) ++ body.freeVars) -- names.toSet
+      }
     }
 
     case class Lambda(v: Name, expr: PExpr) extends Applicable {
@@ -109,7 +113,10 @@ package object parlang {
     def ~>(e: PExpr): PExpr = Lambda(v, e)
   }
 
-  def let(v: Name, e: PExpr)(body: PExpr): PExpr = Let(v, e, body)
+  def let(v: Name, e: PExpr)(body: PExpr): PExpr = Let(List(v -> e), body)
+
+  def lets(bindings: (Name, PExpr)*)(body: PExpr): PExpr =
+    Let(bindings.toList, body)
 
   def pair(x: PExpr, y: PExpr): PExpr = Pair(x, y)
 
@@ -163,7 +170,7 @@ package object parlang {
   type ReducedThunk = ThunkValue[Reduced]
 
   var memoizing = true
-  var maxSteps = 2000
+  var maxSteps = 5000
 
   def eval(ctx: PContext, e: PExpr): Either[TracedError, ReducedThunk] = {
     var steps = 0
@@ -208,9 +215,12 @@ package object parlang {
               f2 <- asFunc(f1)
               r <- substitute(f2, thunk(ctx, x), ctx1())
             } yield r
-          case Let(v, expr, body) =>
-            lazy val exprThunk: Thunk = thunk(ctx1, expr)
-            lazy val ctx1: PContext = ctx.updated(v, exprThunk)
+          case Let(bindings, body) =>
+            lazy val exprThunks = bindings.map {
+              case (v, rhs) =>
+                v -> thunk(ctx1, rhs)
+            }
+            lazy val ctx1: PContext = ctx ++ exprThunks
             reduce(thunk(ctx1, body))
         }
       }
