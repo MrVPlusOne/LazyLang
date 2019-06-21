@@ -4,12 +4,11 @@ import parlang._
 
 //noinspection TypeAnnotation
 object ParLangExample {
+  import StandardLib._
 
-  val incLambda = "x" ~> "plus".call(1).call("x")
+  val incExpr = "x" ~> "plus".call(1).call("x")
 
-  val incExample = let("f", incLambda)("f".call(4))
-
-  val factExample = {
+  val factExpr = {
     val factBody = "x" ~>
       "choose"
         .call("greater".call("x").call(0))
@@ -18,20 +17,35 @@ object ParLangExample {
             .call("x")
             .call(
               "fact"
-                .call("plus".call("x").call(-1))
-            )
+                .call("plus".call("x").call(-1)),
+            ),
         )
         .call(1)
-    let("fact", "choose".call(true).call(5)) {
-      "fact".call(3)
-    }
+    let("fact", factBody)("fact")
   }
+
+  val map = let(
+    "map",
+    "f" ~> ("xs" ~>
+      "choose"
+        .call("isUnit".call("xs"))
+        .call("unit")
+        .call(let("x1", "f".call("fst".call("xs"))) {
+          let("rest", "snd".call("xs")) {
+            pair("x1", "map".call("f").call("rest"))
+          }
+        })),
+  ) { "map" }
 
   val listExample = let("x", "plus".call(1).call(5))("print".call(pair("x", 2)))
 
   def main(args: Array[String]): Unit = {
     println {
-      eval(factExample, StandardLib.all)
+      eval(
+        StandardLib.all,
+        "fst" call
+          ("snd" call map.call(incExpr).call(list(1, 2, 3, 4))),
+      )
     }
   }
 

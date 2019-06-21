@@ -13,6 +13,20 @@ package object parlang {
 
   sealed trait PExpr {
     def call(x: PExpr): PExpr = Apply(this, x)
+
+    override def toString: String = this match {
+      case Var(id) => id
+      case Let(v, expr, body) =>
+        s"let $v = $expr in $body"
+      case Lambda(v, expr) =>
+        s"(λ $v. $expr)"
+      case Apply(f, x) =>
+        s"$f($x)"
+      case Pair(x, y) =>
+        s"($x, $y)"
+      case at: AtomValue => at.show
+      case f: EagerFunc  => f.toString
+    }
   }
 
   sealed trait Reduced extends PExpr
@@ -43,19 +57,29 @@ package object parlang {
       EagerFunc(
         name,
         x =>
-          if (f.isDefinedAt(x)) f(x)
+          if (f.isDefinedAt(x))
+            addToTrace(ThunkValue(() => Map(), name.call(x)))(f(x))
           else Result.fail("Function undefined on value."),
       )
   }
 
-  sealed trait AtomValue extends Reduced
+  sealed trait AtomValue extends Reduced {
+    def show: String
+
+  }
 
   private[parlang] object AtomValue {
-    case class IntValue(v: Int) extends AtomValue
+    case class IntValue(v: Int) extends AtomValue {
+      def show: String = v.toString
+    }
 
-    case class BoolValue(b: Boolean) extends AtomValue
+    case class BoolValue(b: Boolean) extends AtomValue {
+      def show: String = b.toString
+    }
 
-    case object UnitValue extends AtomValue
+    case object UnitValue extends AtomValue {
+      def show = "unit"
+    }
   }
 
   implicit def varFromString(name: Name): PExpr = Var(name)
@@ -76,9 +100,9 @@ package object parlang {
 
   def list(xs: PExpr*): PExpr = xs.foldRight(unit: PExpr)(pair)
 
-  type StackTrace = List[PExpr]
+  type StackTrace = List[ThunkValue[PExpr]]
 
-  def addToTrace[T](expr: PExpr)(r: Result[T]): Result[T] = {
+  def addToTrace[T](expr: ThunkValue[PExpr])(r: Result[T]): Result[T] = {
     EitherT(Reader { trace =>
       r.value(expr :: trace)
     })
@@ -103,18 +127,36 @@ package object parlang {
     def apply[T](v: T): Result[T] = v.pure[Result]
   }
 
-  type PContext = Map[Name, PExpr]
+  type PContext = Map[Name, Thunk]
 
-  private def reduce(e: PExpr, ctx: PContext): Result[Reduced] =
-    addToTrace(e) {
+  case class ThunkValue[+V](ctx: () => PContext, expr: V) {
+    override def toString: Name = {
+      s"$expr     -| ctx ${ctx().keySet}"
+    }
+  }
+
+  private[parlang] class Thunk(var value: ThunkValue[PExpr]) {
+    def expr: PExpr = value.expr
+    def ctx: PContext = value.ctx()
+  }
+
+  private[parlang] def thunk(ctx: => PContext, expr: PExpr) =
+    new Thunk(ThunkValue(() => ctx, expr))
+
+  type ReducedThunk = ThunkValue[Reduced]
+
+  val memoizing = true
+
+  private def reduce(t: Thunk): Result[ReducedThunk] = {
+    val (e, ctx) = (t.expr, t.ctx)
+    addToTrace(t.value) {
       e match {
-        case r: Reduced => Result(r)
+        case r: Reduced => Result(ThunkValue(() => ctx, r))
         case Var(id) =>
           ctx.get(id) match {
-            case Some(v) => reduce(v, ctx)
-            case None    => Result.fail(s"Undefined var: $id")
+            case Some(t1) => reduce(t1)
+            case None     => Result.fail(s"Undefined var: $id")
           }
-        case l: Lambda => Result(l)
         case Apply(f, x) =>
           def asFunc(r: Reduced): Result[Applicable] = r match {
             case f: Applicable => Result(f)
@@ -123,33 +165,36 @@ package object parlang {
 
           def substitute(
               f: Applicable,
-              x: PExpr,
+              x: Thunk,
               ctx: PContext,
-          ): Result[Reduced] = {
+          ): Result[ReducedThunk] = {
             f match {
               case Lambda(v, expr) =>
-                reduce(expr, ctx.updated(v, x))
+                reduce(thunk(ctx.updated(v, x), expr))
               case a: EagerFunc =>
                 for {
-                  xV <- reduce(x, ctx)
+                  ThunkValue(xCtx, xV) <- reduce(x)
                   e <- a.f(xV)
-                  r <- reduce(e, ctx)
+                  r <- reduce(thunk(xCtx(), e))
                 } yield r
             }
           }
 
           for {
-            f1 <- reduce(f, ctx) >>= asFunc
-            r <- substitute(f1, x, ctx)
+            ThunkValue(ctx1, f1) <- reduce(thunk(ctx, f))
+            f2 <- asFunc(f1)
+            r <- substitute(f2, thunk(ctx, x), ctx1())
           } yield r
         case Let(v, expr, body) =>
-          reduce(body, ctx.updated(v, expr))
-        case p: Pair => Result(p)
+          lazy val exprThunk: Thunk = thunk(ctx1, expr)
+          lazy val ctx1: PContext = ctx.updated(v, exprThunk)
+          reduce(thunk(ctx1, body))
       }
     }
+  }
 
-  def eval(e: PExpr, ctx: PContext): Either[TracedError, Reduced] = {
-    reduce(e, ctx).value.run(List())
+  def eval(ctx: PContext, e: PExpr): Either[TracedError, ReducedThunk] = {
+    reduce(thunk(ctx, e)).value.run(List())
   }
 
 }

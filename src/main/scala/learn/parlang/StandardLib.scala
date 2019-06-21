@@ -40,7 +40,12 @@ object StandardLib {
   }
 
   val isZero = func("isZero") {
-    case IntValue(x) => Result(BoolValue(x == 0))
+    case IntValue(x) => Result(x == 0)
+  }
+
+  val isUnit = func("isUnit") {
+    case UnitValue => Result(true)
+    case _         => Result(false)
   }
 
   val greater = func("greater") {
@@ -50,7 +55,8 @@ object StandardLib {
       })
   }
 
-  val all: PContext = Seq(plus, fst, snd, choose, isZero, greater).map { p =>
-    p.name -> p
-  }.toMap
+  val all: PContext =
+    Seq(plus, times, fst, snd, choose, isZero, isUnit, greater).map { p =>
+      p.name -> thunk(Map(), p)
+    }.toMap
 }
