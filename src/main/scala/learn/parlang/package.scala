@@ -38,7 +38,7 @@ package object parlang {
     }
 
     def func(
-              name: String,
+        name: String,
     )(f: PartialFunction[Reduced, Result[PExpr]]): EagerFunc =
       EagerFunc(
         name,
@@ -122,10 +122,10 @@ package object parlang {
           }
 
           def substitute(
-                          f: Applicable,
-                          x: PExpr,
-                          ctx: PContext,
-                        ): Result[Reduced] = {
+              f: Applicable,
+              x: PExpr,
+              ctx: PContext,
+          ): Result[Reduced] = {
             f match {
               case Lambda(v, expr) =>
                 reduce(expr, ctx.updated(v, x))
