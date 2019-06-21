@@ -1,7 +1,7 @@
 package learn.parlang
 
 import learn.parlang.PExpr.Pair
-import learn.parlang.Reduced.func
+import learn.parlang.Reduced.{EagerFunc, func}
 
 //noinspection TypeAnnotation
 object StandardLib {
@@ -55,8 +55,51 @@ object StandardLib {
       })
   }
 
+  val eagerPair = func("eagerPair") {
+    case x =>
+      Result {
+        func("eager1") {
+          case y => Result(pair(x, y))
+        }
+      }
+  }
+
+  val eager: EagerFunc = func("eager") {
+    case Pair(left, right) =>
+      Result {
+        eagerPair.call(eager call left).call(eager call right)
+      }
+    case other => Result(other)
+  }
+
+  val map = let(
+    "map",
+    "f" ~> ("xs" ~>
+      choose
+        .call(isUnit.call("xs"))
+        .call(unit)
+        .call(let("x1", "f".call(fst.call("xs"))) {
+          let("rest", snd.call("xs")) {
+            pair("x1", "map".call("f").call("rest"))
+          }
+        })),
+  ) { "map" }
+
   val all: PContext =
-    Seq(plus, times, fst, snd, choose, isZero, isUnit, greater).map { p =>
-      p.name -> thunk(Map(), p)
+    (Seq(
+      plus,
+      times,
+      fst,
+      snd,
+      choose,
+      isZero,
+      isUnit,
+      greater,
+      eagerPair,
+      eager,
+    ).map(p => p.name -> p)
+      ++ Map("map" -> map)).map {
+      case (n, f) =>
+        n -> thunk(Map(), f)
     }.toMap
 }

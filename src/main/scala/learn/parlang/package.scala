@@ -2,7 +2,7 @@ package learn
 
 import cats.data.{Chain, EitherT, Reader}
 import cats.implicits._
-
+import scala.util.chaining._
 import scala.language.implicitConversions
 
 package object parlang {
@@ -147,54 +147,67 @@ package object parlang {
 
   val memoizing = true
 
-  private def reduce(t: Thunk): Result[ReducedThunk] = {
-    val (e, ctx) = (t.expr, t.ctx)
-    addToTrace(t.value) {
-      e match {
-        case r: Reduced => Result(ThunkValue(() => ctx, r))
-        case Var(id) =>
-          ctx.get(id) match {
-            case Some(t1) => reduce(t1)
-            case None     => Result.fail(s"Undefined var: $id")
-          }
-        case Apply(f, x) =>
-          def asFunc(r: Reduced): Result[Applicable] = r match {
-            case f: Applicable => Result(f)
-            case _             => Result.fail(s"Term $r used as function.")
-          }
-
-          def substitute(
-              f: Applicable,
-              x: Thunk,
-              ctx: PContext,
-          ): Result[ReducedThunk] = {
-            f match {
-              case Lambda(v, expr) =>
-                reduce(thunk(ctx.updated(v, x), expr))
-              case a: EagerFunc =>
-                for {
-                  ThunkValue(xCtx, xV) <- reduce(x)
-                  e <- a.f(xV)
-                  r <- reduce(thunk(xCtx(), e))
-                } yield r
-            }
-          }
-
-          for {
-            ThunkValue(ctx1, f1) <- reduce(thunk(ctx, f))
-            f2 <- asFunc(f1)
-            r <- substitute(f2, thunk(ctx, x), ctx1())
-          } yield r
-        case Let(v, expr, body) =>
-          lazy val exprThunk: Thunk = thunk(ctx1, expr)
-          lazy val ctx1: PContext = ctx.updated(v, exprThunk)
-          reduce(thunk(ctx1, body))
-      }
-    }
-  }
-
   def eval(ctx: PContext, e: PExpr): Either[TracedError, ReducedThunk] = {
-    reduce(thunk(ctx, e)).value.run(List())
+    var steps = 0
+    def reduce(t: Thunk): Result[ReducedThunk] = {
+      steps += 1
+      val (e, ctx) = (t.expr, t.ctx)
+      val result = addToTrace[ReducedThunk](t.value) {
+        e match {
+          case r: Reduced => Result(ThunkValue(() => ctx, r))
+          case Var(id) =>
+            ctx.get(id) match {
+              case Some(t1) => reduce(t1)
+              case None     => Result.fail(s"Undefined var: $id")
+            }
+          case Apply(f, x) =>
+            def asFunc(r: Reduced): Result[Applicable] = r match {
+              case f: Applicable => Result(f)
+              case _             => Result.fail(s"Term $r used as function.")
+            }
+
+            def substitute(
+                f: Applicable,
+                x: Thunk,
+                ctx: PContext,
+            ): Result[ReducedThunk] = {
+              f match {
+                case Lambda(v, expr) =>
+                  reduce(thunk(ctx.updated(v, x), expr))
+                case a: EagerFunc =>
+                  for {
+                    ThunkValue(xCtx, xV) <- reduce(x)
+                    e <- a.f(xV)
+                    r <- reduce(thunk(xCtx(), e))
+                  } yield r
+              }
+            }
+
+            for {
+              ThunkValue(ctx1, f1) <- reduce(thunk(ctx, f))
+              f2 <- asFunc(f1)
+              r <- substitute(f2, thunk(ctx, x), ctx1())
+            } yield r
+          case Let(v, expr, body) =>
+            lazy val exprThunk: Thunk = thunk(ctx1, expr)
+            lazy val ctx1: PContext = ctx.updated(v, exprThunk)
+            reduce(thunk(ctx1, body))
+        }
+      }
+      if (memoizing)
+        result.map { r =>
+          t.value = r // memoizing
+          r
+        } else result
+    }
+
+//    lazy val contextWithEager =
+
+    reduce(thunk(ctx, e)).value
+      .run(List())
+      .tap { _ =>
+        println(s"reduction steps: $steps")
+      }
   }
 
 }

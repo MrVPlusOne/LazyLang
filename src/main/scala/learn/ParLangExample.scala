@@ -24,27 +24,13 @@ object ParLangExample {
     let("fact", factBody)("fact")
   }
 
-  val map = let(
-    "map",
-    "f" ~> ("xs" ~>
-      "choose"
-        .call("isUnit".call("xs"))
-        .call("unit")
-        .call(let("x1", "f".call("fst".call("xs"))) {
-          let("rest", "snd".call("xs")) {
-            pair("x1", "map".call("f").call("rest"))
-          }
-        })),
-  ) { "map" }
-
   val listExample = let("x", "plus".call(1).call(5))("print".call(pair("x", 2)))
 
   def main(args: Array[String]): Unit = {
     println {
       eval(
         StandardLib.all,
-        "fst" call
-          ("snd" call map.call(incExpr).call(list(1, 2, 3, 4))),
+        "eager" call "map".call(incExpr).call(list(1, 2, 3, 4)),
       )
     }
   }
