@@ -43,6 +43,12 @@ object StandardLib {
     case IntValue(x) => Result(x == 0)
   }
 
+  val or = func("or"){
+    case BoolValue(x) => Result(func(s"or $x"){
+      case BoolValue(y) => Result(x || y)
+    })
+  }
+
   val isUnit = func("isUnit") {
     case UnitValue => Result(true)
     case _         => Result(false)
@@ -85,6 +91,60 @@ object StandardLib {
         })),
   ) { "map" }
 
+  val mkPair = "x" ~> ("y" ~> pair("x", "y"))
+
+  /* foldr f x0 xs = rec x0 xs
+      where
+   *    rec acc xs =
+   *    if xs.isEmpty then acc
+   *    else rec (f (head xs) acc) (tail xs)
+   *  */
+  val foldr = let(
+    "foldr",
+    "f" ~>
+      ("x0" ~>
+        ("xs" ~>
+          let(
+            "rec",
+            "acc" ~> (
+              "xs" ~>
+                choose
+                  .call(isUnit.call("xs"))
+                  .call("acc")
+                  .call(
+                    "rec".calls(
+                      "f".calls(
+                        fst.call("xs"),
+                        "acc",
+                      ),
+                      snd.call("xs"),
+                    ),
+                  )
+            ),
+          ) {
+            "rec".calls("x0", "xs")
+          })),
+  )("foldr")
+
+  val take = let(
+    "take",
+    "n" ~>
+      ("xs" ~>
+        choose
+          .call(
+            or.calls(isUnit.call("xs"), isZero.call("n")))
+          .call("xs")
+          .call(
+            pair(
+              fst.call("xs"),
+              "take".calls(
+                plus.calls("n", -1),
+                snd.call("xs"),
+              ),
+            ),
+          )),
+  )("take")
+
   val all: PContext =
     (Seq(
       plus,
@@ -98,7 +158,7 @@ object StandardLib {
       eagerPair,
       eager,
     ).map(p => p.name -> p)
-      ++ Map("map" -> map)).map {
+      ++ Map("map" -> map, "foldr" -> foldr, "mkPair" -> mkPair)).map {
       case (n, f) =>
         n -> thunk(Map(), f)
     }.toMap

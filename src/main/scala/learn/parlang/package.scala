@@ -14,6 +14,8 @@ package object parlang {
   sealed trait PExpr {
     def call(x: PExpr): PExpr = Apply(this, x)
 
+    def calls(xs: PExpr*): PExpr = xs.foldLeft(this)(_.call(_))
+
     override def toString: String = this match {
       case Var(id) => id
       case Let(v, expr, body) =>
@@ -27,6 +29,8 @@ package object parlang {
       case at: AtomValue => at.show
       case f: EagerFunc  => f.toString
     }
+
+    def freeVars: Set[Name]
   }
 
   sealed trait Reduced extends PExpr
@@ -34,21 +38,33 @@ package object parlang {
   sealed trait Applicable extends Reduced
 
   private[parlang] object PExpr {
-    case class Var(id: Name) extends PExpr
+    case class Var(id: Name) extends PExpr{
+      lazy val freeVars: Set[Name] = Set(id)
+    }
 
-    case class Let(v: Name, expr: PExpr, body: PExpr) extends PExpr
+    case class Let(v: Name, expr: PExpr, body: PExpr) extends PExpr{
+      lazy val freeVars: Set[Name] = (expr.freeVars ++ body.freeVars) - v
+    }
 
-    case class Lambda(v: Name, expr: PExpr) extends Applicable
+    case class Lambda(v: Name, expr: PExpr) extends Applicable{
+      lazy val freeVars: Set[Name] = expr.freeVars - v
+    }
 
-    case class Apply(f: PExpr, x: PExpr) extends PExpr
+    case class Apply(f: PExpr, x: PExpr) extends PExpr {
+      lazy val freeVars: Set[Name] = f.freeVars ++ x.freeVars
+    }
 
-    case class Pair(left: PExpr, right: PExpr) extends Reduced
+    case class Pair(left: PExpr, right: PExpr) extends Reduced{
+      lazy val freeVars: Set[Name] = left.freeVars ++ right.freeVars
+    }
   }
 
   private[parlang] object Reduced {
     case class EagerFunc(name: String, f: Reduced => Result[PExpr])
         extends Applicable {
       override def toString: Name = s"<function: $name>"
+
+      def freeVars: Set[Name] = Set()
     }
 
     def func(
@@ -66,6 +82,7 @@ package object parlang {
   sealed trait AtomValue extends Reduced {
     def show: String
 
+    def freeVars: Set[Name] = Set()
   }
 
   private[parlang] object AtomValue {
@@ -98,7 +115,7 @@ package object parlang {
 
   val unit: AtomValue = AtomValue.UnitValue
 
-  def list(xs: PExpr*): PExpr = xs.foldRight(unit: PExpr)(pair)
+  def list(xs: PExpr*): PExpr = xs.reverse.foldRight(unit: PExpr)(pair)
 
   type StackTrace = List[ThunkValue[PExpr]]
 
@@ -145,12 +162,15 @@ package object parlang {
 
   type ReducedThunk = ThunkValue[Reduced]
 
-  val memoizing = true
+  var memoizing = true
+  var maxSteps = 500  // todo: addressing stack issue
 
   def eval(ctx: PContext, e: PExpr): Either[TracedError, ReducedThunk] = {
     var steps = 0
     def reduce(t: Thunk): Result[ReducedThunk] = {
       steps += 1
+      if(steps > maxSteps)
+        return Result.fail("Max steps hit.")
       val (e, ctx) = (t.expr, t.ctx)
       val result = addToTrace[ReducedThunk](t.value) {
         e match {
@@ -158,7 +178,7 @@ package object parlang {
           case Var(id) =>
             ctx.get(id) match {
               case Some(t1) => reduce(t1)
-              case None     => Result.fail(s"Undefined var: $id")
+              case None     => Result.fail(s"Undefined var: $id.")
             }
           case Apply(f, x) =>
             def asFunc(r: Reduced): Result[Applicable] = r match {
@@ -201,13 +221,17 @@ package object parlang {
         } else result
     }
 
-//    lazy val contextWithEager =
-
-    reduce(thunk(ctx, e)).value
-      .run(List())
-      .tap { _ =>
-        println(s"reduction steps: $steps")
-      }
+    val undefinedVars = e.freeVars -- ctx.keySet
+    if(undefinedVars.nonEmpty)
+      Left(TracedError(List(), s"Undefined vars: ${undefinedVars.mkString(", ")}"))
+    else {
+      val ctx1 = e.freeVars.map(k => k -> ctx(k)).toMap
+      reduce(thunk(ctx1, e)).value
+        .run(List())
+        .tap { _ =>
+          println(s"reduction steps: $steps")
+        }
+    }
   }
 
 }

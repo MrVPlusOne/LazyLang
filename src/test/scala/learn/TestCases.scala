@@ -24,12 +24,35 @@ object TestCases extends TestSuite {
       def fact(n: Int): Int =
         if (n > 0) n * fact(n - 1) else 1
 
-      (-10 to 10).foreach { i =>
-        checkResult(incExpr.call(i), i + 1) ==> None
+      test("inc") {
+        (-10 to 10).foreach { i =>
+          checkResult(incExpr.call(i), i + 1) ==> None
+        }
       }
 
-      (-4 to 10).foreach { i =>
-        checkResult(factExpr.call(i), fact(i)) ==> None
+      test("fact") {
+        List(-4, -1, 0, 1, 2, 5, 10, 20).foreach { i =>
+          checkResult(factExpr.call(i), fact(i)) ==> None
+        }
+      }
+
+      test("foldr") {
+        val input = list(1, 2, 3, 4).asInstanceOf[Reduced]
+        checkResult(
+          "eager" call foldrPairExpr.call(input),
+          list(4, 3, 2, 1).asInstanceOf[Reduced],
+        ) ==> None
+      }
+
+      test("repeat 1 2") {
+
+      }
+
+      test("out of scope error") {
+        assert(eval(StandardLib.all, let("x", "y")("y" ~> "y")).isLeft)
+      }
+      test("infinite loop error") {
+        assert(eval(StandardLib.all, let("x", "x")("x")).isLeft)
       }
     }
   }
