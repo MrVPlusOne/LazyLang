@@ -7,7 +7,6 @@ import scala.language.implicitConversions
 
 package object parlang {
   import parlang.PExpr._
-  import Reduced.func
   import learn.parlang.Reduced.EagerFunc
 
   type Name = String
@@ -39,13 +38,13 @@ package object parlang {
     }
 
     def func(
-      name: String
+              name: String,
     )(f: PartialFunction[Reduced, Result[PExpr]]): EagerFunc =
       EagerFunc(
         name,
         x =>
           if (f.isDefinedAt(x)) f(x)
-          else Result.fail("Function undefined on value.")
+          else Result.fail("Function undefined on value."),
       )
   }
 
@@ -122,9 +121,11 @@ package object parlang {
             case _             => Result.fail(s"Term $r used as function.")
           }
 
-          def substitute(f: Applicable,
-                         x: PExpr,
-                         ctx: PContext): Result[Reduced] = {
+          def substitute(
+                          f: Applicable,
+                          x: PExpr,
+                          ctx: PContext,
+                        ): Result[Reduced] = {
             f match {
               case Lambda(v, expr) =>
                 reduce(expr, ctx.updated(v, x))
@@ -149,58 +150,6 @@ package object parlang {
 
   def eval(e: PExpr, ctx: PContext): Either[TracedError, Reduced] = {
     reduce(e, ctx).value.run(List())
-  }
-
-  //noinspection TypeAnnotation
-  object StandardLib {
-    import AtomValue._
-
-    val plus = func("plus") {
-      case IntValue(x) =>
-        Result(func(s"plus $x") {
-          case IntValue(y) =>
-            Result(intValue(x + y))
-        })
-    }
-
-    val times = func("times") {
-      case IntValue(x) =>
-        Result(func(s"times $x") {
-          case IntValue(y) =>
-            Result(intValue(x * y))
-        })
-    }
-
-    val fst = func("fst") {
-      case Pair(left, _) => Result(left)
-    }
-
-    val snd = func("snd") {
-      case Pair(_, right) => Result(right)
-    }
-
-    val choose = func("choose") {
-      case BoolValue(b) =>
-        Result {
-          if (b) "x" ~> ("y" ~> "x")
-          else "x" ~> ("y" ~> "y")
-        }
-    }
-
-    val isZero = func("isZero") {
-      case IntValue(x) => Result(BoolValue(x == 0))
-    }
-
-    val greater = func("greater") {
-      case IntValue(x) =>
-        Result(func(s"greater $x") {
-          case IntValue(y) => Result(BoolValue(x > y))
-        })
-    }
-
-    val all: PContext = Seq(plus, fst, snd, choose, isZero, greater).map { p =>
-      p.name -> p
-    }.toMap
   }
 
 }
