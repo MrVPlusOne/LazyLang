@@ -38,15 +38,15 @@ package object parlang {
   sealed trait Applicable extends Reduced
 
   private[parlang] object PExpr {
-    case class Var(id: Name) extends PExpr{
+    case class Var(id: Name) extends PExpr {
       lazy val freeVars: Set[Name] = Set(id)
     }
 
-    case class Let(v: Name, expr: PExpr, body: PExpr) extends PExpr{
+    case class Let(v: Name, expr: PExpr, body: PExpr) extends PExpr {
       lazy val freeVars: Set[Name] = (expr.freeVars ++ body.freeVars) - v
     }
 
-    case class Lambda(v: Name, expr: PExpr) extends Applicable{
+    case class Lambda(v: Name, expr: PExpr) extends Applicable {
       lazy val freeVars: Set[Name] = expr.freeVars - v
     }
 
@@ -54,7 +54,7 @@ package object parlang {
       lazy val freeVars: Set[Name] = f.freeVars ++ x.freeVars
     }
 
-    case class Pair(left: PExpr, right: PExpr) extends Reduced{
+    case class Pair(left: PExpr, right: PExpr) extends Reduced {
       lazy val freeVars: Set[Name] = left.freeVars ++ right.freeVars
     }
   }
@@ -119,7 +119,7 @@ package object parlang {
 
   type StackTrace = List[ThunkValue[PExpr]]
 
-  def addToTrace[T](expr: ThunkValue[PExpr])(r: Result[T]): Result[T] = {
+  def addToTrace[T](expr: ThunkValue[PExpr])(r: => Result[T]): Result[T] = {
     EitherT(Reader { trace =>
       r.value(expr :: trace)
     })
@@ -163,16 +163,16 @@ package object parlang {
   type ReducedThunk = ThunkValue[Reduced]
 
   var memoizing = true
-  var maxSteps = 500  // todo: addressing stack issue
+  var maxSteps = 2000
 
   def eval(ctx: PContext, e: PExpr): Either[TracedError, ReducedThunk] = {
     var steps = 0
     def reduce(t: Thunk): Result[ReducedThunk] = {
       steps += 1
-      if(steps > maxSteps)
+      if (steps > maxSteps)
         return Result.fail("Max steps hit.")
-      val (e, ctx) = (t.expr, t.ctx)
       val result = addToTrace[ReducedThunk](t.value) {
+        val (e, ctx) = (t.expr, t.ctx)
         e match {
           case r: Reduced => Result(ThunkValue(() => ctx, r))
           case Var(id) =>
@@ -216,14 +216,16 @@ package object parlang {
       }
       if (memoizing)
         result.map { r =>
-          t.value = r // memoizing
+          t.value = r
           r
         } else result
     }
 
     val undefinedVars = e.freeVars -- ctx.keySet
-    if(undefinedVars.nonEmpty)
-      Left(TracedError(List(), s"Undefined vars: ${undefinedVars.mkString(", ")}"))
+    if (undefinedVars.nonEmpty)
+      Left(
+        TracedError(List(), s"Undefined vars: ${undefinedVars.mkString(", ")}"),
+      )
     else {
       val ctx1 = e.freeVars.map(k => k -> ctx(k)).toMap
       reduce(thunk(ctx1, e)).value
