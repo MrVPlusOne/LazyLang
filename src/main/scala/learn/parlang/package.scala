@@ -116,14 +116,6 @@ package object parlang
 
     case class BoolValue(b: Boolean) extends AtomValue {
       def show: String = if(b) "True" else "False"
-
-      override def equals(obj: Any): Boolean = {
-        show == obj.toString
-      }
-
-      override def hashCode(): Int = {
-        b.hashCode()
-      }
     }
 
     case object UnitValue extends AtomValue {

@@ -9,13 +9,13 @@ import utest._
 
 object ParsingTests extends TestSuite with UTestScalaCheck {
   val tests = Tests{
+
     test("random expr linear show parsing"){
       import learn.parlang.RandomExpr.exprGen
 
       (0 until 50).foreach{ size =>
         val expr = exprGen.pureApply(Gen.Parameters.default.withSize(size), Seed.random())
         val got = parlang.parseExpr(expr.showLinear)
-        println("equal?: " + (got equals Right(expr)))
         assert(got.toString == Right(expr).toString)
       }
     }

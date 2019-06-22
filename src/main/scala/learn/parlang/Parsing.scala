@@ -35,6 +35,7 @@ object Parsing {
     val keywordList: Set[String] = Set(
       "where",
       "lam",
+      "True", "False"
     )
 
     def pIdentifier[_: P]: P[String] = {
@@ -70,7 +71,7 @@ object Parsing {
         }
 
     def pSeg[_: P]: P[PExpr] = P {
-      pLambda | pList | pVar | pAtom | pPaired
+      pLambda | pList | pAtom | pVar | pPaired
     }
 
     def pApply[_: P]: P[PExpr] = P {
