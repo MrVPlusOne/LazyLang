@@ -78,7 +78,7 @@ package object parlang {
         name,
         x =>
           if (f.isDefinedAt(x))
-            addToTrace(ThunkValue(() => Map(), name.call(x)))(f(x))
+            addToTrace(ThunkValue(Map(), name.call(x)))(f(x))
           else Result.fail("Function undefined on value."),
       )
   }
@@ -153,19 +153,19 @@ package object parlang {
 
   type PContext = Map[Name, Thunk]
 
-  case class ThunkValue[+V](ctx: () => PContext, expr: V) {
+  case class ThunkValue[+V](ctx: PContext, expr: V) {
     override def toString: Name = {
-      s"$expr     -| ctx ${ctx().keySet}"
+      s"$expr     -| ctx ${ctx.keySet}"
     }
   }
 
   private[parlang] class Thunk(var value: ThunkValue[PExpr]) {
     def expr: PExpr = value.expr
-    def ctx: PContext = value.ctx()
+    def ctx: PContext = value.ctx
   }
 
-  private[parlang] def thunk(ctx: => PContext, expr: PExpr) =
-    new Thunk(ThunkValue(() => ctx, expr))
+  private[parlang] def thunk(ctx: PContext, expr: PExpr) =
+    new Thunk(ThunkValue(ctx, expr))
 
   type ReducedThunk = ThunkValue[Reduced]
 
@@ -181,7 +181,7 @@ package object parlang {
       val result = addToTrace[ReducedThunk](t.value) {
         val (e, ctx) = (t.expr, t.ctx)
         e match {
-          case r: Reduced => Result(ThunkValue(() => ctx, r))
+          case r: Reduced => Result(ThunkValue(ctx, r))
           case Var(id) =>
             ctx.get(id) match {
               case Some(t1) => reduce(t1)
@@ -205,7 +205,7 @@ package object parlang {
                   for {
                     ThunkValue(xCtx, xV) <- reduce(x)
                     e <- a.f(xV)
-                    r <- reduce(thunk(xCtx(), e))
+                    r <- reduce(thunk(xCtx, e))
                   } yield r
               }
             }
@@ -213,14 +213,17 @@ package object parlang {
             for {
               ThunkValue(ctx1, f1) <- reduce(thunk(ctx, f))
               f2 <- asFunc(f1)
-              r <- substitute(f2, thunk(ctx, x), ctx1())
+              r <- substitute(f2, thunk(ctx, x), ctx1)
             } yield r
           case Let(bindings, body) =>
-            lazy val exprThunks = bindings.map {
-              case (v, rhs) =>
-                v -> thunk(ctx1, rhs)
+            val emptyThunks = bindings.map {
+              case (v, _) =>
+                v -> new Thunk(null) // initialize thunks later
             }
-            lazy val ctx1: PContext = ctx ++ exprThunks
+            val ctx1: PContext = ctx ++ emptyThunks
+            bindings.foreach{ case (v, e1) =>
+              ctx1(v).value = ThunkValue(ctx1, e1)
+            }
             reduce(thunk(ctx1, body))
         }
       }
