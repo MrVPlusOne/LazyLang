@@ -1,7 +1,9 @@
 package learn
 
-import cats.data.{Chain, EitherT, Reader}
+import cats.Eval
+import cats.data.{Chain, EitherT, Reader, ReaderT}
 import cats.implicits._
+
 import scala.util.chaining._
 import scala.language.implicitConversions
 
@@ -133,13 +135,13 @@ package object parlang {
 
   type StackTrace = List[ThunkValue[PExpr]]
 
-  def addToTrace[T](expr: ThunkValue[PExpr])(r: => Result[T]): Result[T] = {
-    EitherT(Reader { trace =>
-      r.value(expr :: trace)
+  def addToTrace[T](expr: ThunkValue[PExpr])(r: Result[T]): Result[T] = {
+    EitherT(ReaderT { trace =>
+      r.value.run(expr :: trace)
     })
   }
 
-  type WithTrace[T] = Reader[StackTrace, T]
+  type WithTrace[T] = ReaderT[Eval, StackTrace, T]
 
   case class TracedError(trace: StackTrace, message: String) {
     override def toString: Name = {
@@ -151,11 +153,15 @@ package object parlang {
 
   private[parlang] object Result {
     def fail[T](message: String): Result[T] =
-      EitherT(Reader { trace =>
-        TracedError(trace, message).asLeft
+      EitherT(ReaderT { trace =>
+        Eval.now(TracedError(trace, message).asLeft)
       })
 
     def apply[T](v: T): Result[T] = v.pure[Result]
+
+    def defer[T](f: => Result[T]): Result[T] = {
+      Result(()).flatMap(_ => f)
+    }
   }
 
   type PContext = Map[Name, Thunk]
@@ -178,7 +184,7 @@ package object parlang {
 
   var memoizing = true
 
-  def eval(ctx: PContext, maxSteps: Int = 1000)(
+  def eval(ctx: PContext, maxSteps: Int = 5000)(
       e: PExpr,
   ): Either[TracedError, ReducedThunk] = {
     var steps = 0
@@ -186,61 +192,65 @@ package object parlang {
     def reduce(t: Thunk): Result[ReducedThunk] = {
       steps += 1
       if (steps > maxSteps)
-        return Result.fail("Max steps hit.")
-      val result = addToTrace[ReducedThunk](t.value) {
-        val (e, ctx) = (t.expr, t.ctx)
-        e match {
-          case r: Reduced => Result(ThunkValue(ctx, r))
-          case Var(id) =>
-            ctx.get(id) match {
-              case Some(t1) => reduce(t1)
-              case None     => Result.fail(s"Undefined var: $id.")
-            }
-          case Apply(f, x) =>
-            def asFunc(r: Reduced): Result[Applicable] = r match {
-              case f: Applicable => Result(f)
-              case _             => Result.fail(s"Term $r used as function.")
-            }
+        Result.fail("Max steps hit.")
+      else
+        Result.defer {
+          val result = addToTrace[ReducedThunk](t.value) {
+            val (e, ctx) = (t.expr, t.ctx)
+            e match {
+              case r: Reduced => Result(ThunkValue(ctx, r))
+              case Var(id) =>
+                ctx.get(id) match {
+                  case Some(t1) => reduce(t1)
+                  case None     => Result.fail(s"Undefined var: $id.")
+                }
+              case Apply(f, x) =>
+                def asFunc(r: Reduced): Result[Applicable] = r match {
+                  case f: Applicable => Result(f)
+                  case _             => Result.fail(s"Term $r used as function.")
+                }
 
-            def substitute(
-                f: Applicable,
-                x: Thunk,
-                ctx: PContext,
-            ): Result[ReducedThunk] = {
-              f match {
-                case Lambda(v, expr) =>
-                  reduce(thunk(ctx.updated(v, x), expr))
-                case a: EagerFunc =>
-                  for {
-                    ThunkValue(xCtx, xV) <- reduce(x)
-                    e <- a.f(xV)
-                    r <- reduce(thunk(xCtx, e))
-                  } yield r
-              }
-            }
+                def substitute(
+                    f: Applicable,
+                    x: Thunk,
+                    ctx: PContext,
+                ): Result[ReducedThunk] = {
+                  f match {
+                    case Lambda(v, expr) =>
+                      reduce(thunk(ctx.updated(v, x), expr))
+                    case a: EagerFunc =>
+                      for {
+                        ThunkValue(xCtx, xV) <- reduce(x)
+                        e <- a.f(xV)
+                        r <- reduce(thunk(xCtx, e))
+                      } yield r
+                  }
+                }
 
-            for {
-              ThunkValue(ctx1, f1) <- reduce(thunk(ctx, f))
-              f2 <- asFunc(f1)
-              r <- substitute(f2, thunk(ctx, x), ctx1)
-            } yield r
-          case Where(body, bindings) =>
-            val emptyThunks = bindings.map {
-              case (v, _) =>
-                v -> new Thunk(null) // initialize thunks later
+                for {
+                  ThunkValue(ctx1, f1) <- reduce(thunk(ctx, f))
+                  f2 <- asFunc(f1)
+                  r <- substitute(f2, thunk(ctx, x), ctx1)
+                } yield r
+              case Where(body, bindings) =>
+                val emptyThunks = bindings.map {
+                  case (v, _) =>
+                    v -> new Thunk(null) // initialize thunks later
+                }
+                val ctx1: PContext = ctx ++ emptyThunks
+                bindings.foreach {
+                  case (v, e1) =>
+                    ctx1(v).value = ThunkValue(ctx1, e1)
+                }
+                reduce(thunk(ctx1, body))
             }
-            val ctx1: PContext = ctx ++ emptyThunks
-            bindings.foreach{ case (v, e1) =>
-              ctx1(v).value = ThunkValue(ctx1, e1)
-            }
-            reduce(thunk(ctx1, body))
+          }
+          if (memoizing)
+            result.map { r =>
+              t.value = r
+              r
+            } else result
         }
-      }
-      if (memoizing)
-        result.map { r =>
-          t.value = r
-          r
-        } else result
     }
 
     val undefinedVars = e.freeVars -- ctx.keySet
@@ -252,6 +262,7 @@ package object parlang {
       val ctx1 = e.freeVars.map(k => k -> ctx(k)).toMap
       reduce(thunk(ctx1, e)).value
         .run(List())
+        .value
         .tap { _ =>
           println(s"reduction steps: $steps")
         }
