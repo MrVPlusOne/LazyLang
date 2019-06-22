@@ -52,11 +52,10 @@ object ParLangExample {
   )("isEven")
 
   def main(args: Array[String]): Unit = {
+    val longList = list((0 to 20).map(intValue): _*)
+
     println {
-      eval(
-        StandardLib.all,
-        isEven.call(100)
-      )
+      eval(StandardLib.all)(eager call take.call(8, longList))
     }
   }
 

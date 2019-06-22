@@ -15,12 +15,19 @@ package object parlang {
 
     def call(xs: PExpr*): PExpr = xs.foldLeft(this)(Apply)
 
+    def where(bindings: (Name, PExpr)*): PExpr =
+      Where(this, bindings.toList)
+
     override def toString: String = this match {
       case Var(id) => id
-      case Let(bindings, body) =>
-        val bindingList =
-          bindings.map { case (v, e) => s"$v = $e" }.mkString(", ")
-        s"(let $bindingList in $body)"
+      case Where(body, bindings) =>
+        val bindingList = {
+          val clauses = bindings.map { case (v, e) => s"$v = $e" }
+          if (clauses.length > 1)
+            clauses.mkString("{", "; ", "}")
+          else clauses.mkString("; ")
+        }
+        s"($body where $bindingList)"
       case Lambda(v, expr) =>
         s"(λ $v. $expr)"
       case Apply(f, x) =>
@@ -43,8 +50,8 @@ package object parlang {
       lazy val freeVars: Set[Name] = Set(id)
     }
 
-    case class Let(bindings: List[(Name, PExpr)], body: PExpr) extends PExpr {
-      lazy val freeVars: Set[Name] = {
+    case class Where(body: PExpr, bindings: List[(Name, PExpr)]) extends PExpr {
+      val freeVars: Set[Name] = {
         val (names, exprs) = bindings.unzip
         (exprs.foldMap(_.freeVars) ++ body.freeVars) -- names.toSet
       }
@@ -113,16 +120,16 @@ package object parlang {
     def ~>(e: PExpr): PExpr = Lambda(v, e)
   }
 
-  def let(v: Name, e: PExpr)(body: PExpr): PExpr = Let(List(v -> e), body)
+  def let(v: Name, e: PExpr)(body: PExpr): PExpr = Where(body, List(v -> e))
 
   def lets(bindings: (Name, PExpr)*)(body: PExpr): PExpr =
-    Let(bindings.toList, body)
+    Where(body, bindings.toList)
 
   def pair(x: PExpr, y: PExpr): PExpr = Pair(x, y)
 
   val unit: AtomValue = AtomValue.UnitValue
 
-  def list(xs: PExpr*): PExpr = xs.reverse.foldRight(unit: PExpr)(pair)
+  def list(xs: PExpr*): PExpr = xs.foldRight(unit: PExpr)(pair)
 
   type StackTrace = List[ThunkValue[PExpr]]
 
@@ -170,10 +177,12 @@ package object parlang {
   type ReducedThunk = ThunkValue[Reduced]
 
   var memoizing = true
-  var maxSteps = 5000
 
-  def eval(ctx: PContext, e: PExpr): Either[TracedError, ReducedThunk] = {
+  def eval(ctx: PContext, maxSteps: Int = 1000)(
+      e: PExpr,
+  ): Either[TracedError, ReducedThunk] = {
     var steps = 0
+
     def reduce(t: Thunk): Result[ReducedThunk] = {
       steps += 1
       if (steps > maxSteps)
@@ -215,7 +224,7 @@ package object parlang {
               f2 <- asFunc(f1)
               r <- substitute(f2, thunk(ctx, x), ctx1)
             } yield r
-          case Let(bindings, body) =>
+          case Where(body, bindings) =>
             val emptyThunks = bindings.map {
               case (v, _) =>
                 v -> new Thunk(null) // initialize thunks later

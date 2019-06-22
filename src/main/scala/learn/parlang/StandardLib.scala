@@ -43,10 +43,11 @@ object StandardLib {
     case IntValue(x) => Result(x == 0)
   }
 
-  val or = func("or"){
-    case BoolValue(x) => Result(func(s"or $x"){
-      case BoolValue(y) => Result(x || y)
-    })
+  val or = func("or") {
+    case BoolValue(x) =>
+      Result(func(s"or $x") {
+        case BoolValue(y) => Result(x || y)
+      })
   }
 
   val isUnit = func("isUnit") {
@@ -93,47 +94,33 @@ object StandardLib {
 
   val mkPair = "x" ~> ("y" ~> pair("x", "y"))
 
-  /* foldr f x0 xs = rec x0 xs
-      where
-   *    rec acc xs =
-   *    if xs.isEmpty then acc
-   *    else rec (f (head xs) acc) (tail xs)
+  /* foldr f z []     = z
+   * foldr f z (x:xs) = f x (foldr f z xs)
    *  */
-  val foldr = let(
-    "foldr",
-    "f" ~>
-      ("x0" ~>
-        ("xs" ~>
-          let(
-            "rec",
-            "acc" ~> (
-              "xs" ~>
-                choose
-                  .call(isUnit.call("xs"))
-                  .call("acc")
-                  .call(
-                    "rec".call(
-                      "f".call(
-                        fst.call("xs"),
-                        "acc",
-                      ),
-                      snd.call("xs"),
-                    ),
-                  )
-            ),
-          ) {
-            "rec".call("x0", "xs")
-          })),
-  )("foldr")
+  val foldr =
+    "foldr".where(
+      "foldr" ->
+        "f" ~>
+          ("x0" ~>
+            ("xs" ~> {
+              choose.call(
+                isUnit.call("xs"),
+                "x0",
+                "f".call(
+                  fst.call("xs"),
+                  "foldr".call("f", "x0", snd.call("xs")),
+                ),
+              )
+            })),
+    )
 
   val take = let(
     "take",
     "n" ~>
       ("xs" ~>
         choose
-          .call(
-            or.call(isUnit.call("xs"), isZero.call("n")))
-          .call("xs")
+          .call(or.call(isUnit.call("xs"), isZero.call("n")))
+          .call(unit)
           .call(
             pair(
               fst.call("xs"),

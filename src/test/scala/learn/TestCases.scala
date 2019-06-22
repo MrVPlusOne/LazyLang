@@ -9,7 +9,7 @@ object TestCases extends TestSuite {
   type TestError = Either[TracedError, WrongResult]
 
   def checkResult(program: PExpr, expect: Reduced): Option[TestError] = {
-    eval(StandardLib.all, program) match {
+    eval(StandardLib.all)(program) match {
       case Left(error) => Some(error.asLeft)
       case Right(v) =>
         if (v.expr != expect) Some(WrongResult(expect, v, program).asRight)
@@ -40,29 +40,29 @@ object TestCases extends TestSuite {
         val input = list(1, 2, 3, 4).asInstanceOf[Reduced]
         checkResult(
           "eager" call foldrPairExpr.call(input),
-          list(4, 3, 2, 1).asInstanceOf[Reduced],
+          input,
         ) ==> None
       }
 
-      test("mutual isEven"){
+      test("mutual isEven") {
         (0 to 9).foreach { i =>
           checkResult(isEven.call(i), i % 2 == 0) ==> None
         }
       }
 
       test("repeat 1 2") {
-        // todo: call eager on take n of an inifite list
-        checkResult(let("xs", list(1, 2, "xs")) {
+        lazy val xs: LazyList[PExpr] = LazyList.cons(intValue(1), LazyList.cons(intValue(2),  xs))
+        checkResult(let("xs", "mkPair".call(1, "mkPair".call(2, "xs"))) {
           import StandardLib._
-          eager call take.call(0, "xs")
-        }, unit) ==> None
+          eager call take.call(10, "xs")
+        }, list(xs.take(10) :_*).asInstanceOf[Reduced]) ==> None
       }
 
       test("out of scope error") {
-        assert(eval(StandardLib.all, let("x", "y")("y" ~> "y")).isLeft)
+        assert(eval(StandardLib.all)(let("x", "y")("y" ~> "y")).isLeft)
       }
       test("infinite loop error") {
-        assert(eval(StandardLib.all, let("x", "x")("x")).isLeft)
+        assert(eval(StandardLib.all)(let("x", "x")("x")).isLeft)
       }
     }
   }
