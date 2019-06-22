@@ -19,6 +19,8 @@ resolvers += Resolver.sonatypeRepo("releases")
 
 libraryDependencies ++= Seq(
   "com.lihaoyi" %% "fastparse" % "2.1.3",
+  "com.lihaoyi" %% "scalaparse" % "2.1.3",
+  "com.lihaoyi" %% "pythonparse" % "2.1.3",
   "org.scalacheck" %% "scalacheck" % "1.14.0",
 //  "org.scalatest" %% "scalatest" % "3.0.8" % Test,
   "com.lihaoyi" %% "ammonite-ops" % "1.6.8",

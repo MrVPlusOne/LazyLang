@@ -3,8 +3,9 @@ package learn
 import parlang._
 import cats.implicits._
 import utest._
+import Evaluation.{ReducedThunk, TracedError}
 
-object TestCases extends TestSuite {
+object EvaluationTests extends TestSuite {
   case class WrongResult(expect: Reduced, get: ReducedThunk, program: PExpr)
   type TestError = Either[TracedError, WrongResult]
 

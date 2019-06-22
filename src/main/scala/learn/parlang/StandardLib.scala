@@ -6,6 +6,7 @@ import learn.parlang.Reduced.{EagerFunc, func}
 //noinspection TypeAnnotation
 object StandardLib {
   import AtomValue._
+  import Evaluation._
 
   val plus = func("plus") {
     case IntValue(x) =>
