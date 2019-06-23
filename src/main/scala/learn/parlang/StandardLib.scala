@@ -51,6 +51,10 @@ object StandardLib {
       })
   }
 
+  val not = func("not") {
+    case BoolValue(x) => Result(!x)
+  }
+
   val isUnit = func("isUnit") {
     case UnitValue => Result(true)
     case _         => Result(false)
@@ -80,19 +84,6 @@ object StandardLib {
     case other => Result(other)
   }
 
-  val map = let(
-    "map",
-    "f" ~> ("xs" ~>
-      choose
-        .call(isUnit.call("xs"))
-        .call(unit)
-        .call(let("x1", "f".call(fst.call("xs"))) {
-          let("rest", snd.call("xs")) {
-            pair("x1", "map".call("f").call("rest"))
-          }
-        })),
-  ) { "map" }
-
   val mkPair = "x" ~> ("y" ~> pair("x", "y"))
 
   /* foldr f z []     = z
@@ -115,26 +106,9 @@ object StandardLib {
             })),
     )
 
-  val take = let(
-    "take",
-    "n" ~>
-      ("xs" ~>
-        choose
-          .call(or.call(isUnit.call("xs"), isZero.call("n")))
-          .call(unit)
-          .call(
-            pair(
-              fst.call("xs"),
-              "take".call(
-                plus.call("n", -1),
-                snd.call("xs"),
-              ),
-            ),
-          )),
-  )("take")
 
-  val all: PContext =
-    (Seq(
+  val basicCtx: PContext =
+    Seq(
       plus,
       times,
       fst,
@@ -145,14 +119,24 @@ object StandardLib {
       greater,
       eagerPair,
       eager,
-    ).map(p => p.name -> p)
-      ++ Map(
-      "map" -> map,
-      "foldr" -> foldr,
-      "mkPair" -> mkPair,
-      "take" -> take,
-    )).map {
-      case (n, f) =>
-        n -> thunk(Map(), f)
+      or,
+      not,
+    ).map { p =>
+      p.name -> thunk(Map(), p)
     }.toMap
+
+  val all: PContext = {
+    val defs = Seq(
+      "map f xs = if isUnit xs then unit else [x1, map f rest] " +
+        "where {x1 = f (fst xs); rest = snd xs}",
+      "take n xs = if or (isUnit xs) (isZero n) then unit else [fst xs, take (plus n -1) (snd xs)]",
+      "nats = [1, map (plus 1) nats]"
+    )
+    val bindings = defs.map { s =>
+      parseConsoleInput(s)
+        .getOrElse(throw new Error(s"Failed to parse lib def: $s"))
+        .left.getOrElse(throw new Error(s"Parsed as expression in lib def: $s"))
+    }
+    newCtxFromBindings(basicCtx, bindings)
+  }
 }

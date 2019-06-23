@@ -55,7 +55,7 @@ object ParLangExample {
     val longList = list((0 to 20).map(intValue): _*)
 
     println {
-      eval(StandardLib.all)(eager call take.call(8, longList))
+      eval(StandardLib.all)(eager call "take".call(8, longList))
     }
   }
 

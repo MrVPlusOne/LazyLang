@@ -110,7 +110,7 @@ object Parsing {
     }
 
     def pBinding[_: P]: P[Binding] =
-      P(pLhs ~ "=" ~ pExpr)
+      P(pLhs ~ "=" ~/ pExpr)
         .map {
           case (Right(v), e) => v -> e
           case (Left(vs), e) =>
@@ -158,7 +158,6 @@ object Parsing {
 
     def parseExpr(text: String): Either[ParsingError, PExpr] =
       parseWithError(text, Impl.pExpr(_))
-
 
     def parseExprGet(text: String): PExpr = {
       parseExpr(text) match {

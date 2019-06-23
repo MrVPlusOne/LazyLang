@@ -55,9 +55,14 @@ object Evaluation {
 
   type ReducedThunk = ThunkValue[Reduced]
 
-  private[parlang] case class ThunkValue[+V](ctx: PContext, expr: V) {
+  private[parlang] case class ThunkValue[+V <: PExpr](ctx: PContext, expr: V) {
     override def toString: Name = {
-      s"$expr     -| ctx ${ctx.keySet}"
+      val ctxStr = expr.freeVars
+        .map { k =>
+          s"$k -> ${ctx(k).value.expr}"
+        }
+        .mkString(", ")
+      s"$expr     | ctx: $ctxStr"
     }
   }
 
@@ -78,11 +83,11 @@ object Evaluation {
     }
 
     def eval(
-              ctx: PContext,
-              maxSteps: Int = 10000,
-              memoizing: Boolean = true,
-              evalCallback: Int => Unit = _ => (),
-            )(
+        ctx: PContext,
+        maxSteps: Int = 10000,
+        memoizing: Boolean = true,
+        evalCallback: Int => Unit = _ => (),
+    )(
         e: PExpr,
     ): Either[TracedError, ReducedThunk] = {
       var steps = 0

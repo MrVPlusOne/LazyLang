@@ -67,7 +67,7 @@ object EvaluationTests extends TestSuite {
         lazy val xs: LazyList[PExpr] = LazyList.cons(intValue(1), LazyList.cons(intValue(2),  xs))
         checkResult(let("xs", "mkPair".call(1, "mkPair".call(2, "xs"))) {
           import StandardLib._
-          eager call take.call(10, "xs")
+          eager call "take".call(10, "xs")
         }, list(xs.take(10) :_*).asInstanceOf[Reduced]) ==> None
       }
 
