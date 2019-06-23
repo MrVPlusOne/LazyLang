@@ -1,8 +1,6 @@
 package learn.parlang
 
 import cats.implicits._
-
-import scala.util.chaining._
 import cats.data.{EitherT, ReaderT}
 import cats.Eval
 
@@ -75,7 +73,7 @@ object Evaluation {
     new Thunk(ThunkValue(ctx, expr))
 
   trait EvaluationAPI {
-    import PExpr.{Apply, Lambda, Var, Where}
+    import PExpr._
     import Reduced.{Applicable, EagerFunc}
 
     def parseEval(code: String): Either[Error, ReducedThunk] = {
@@ -107,6 +105,9 @@ object Evaluation {
                     case Some(t1) => reduce(t1)
                     case None     => Result.fail(s"Undefined var: $id.")
                   }
+                case Pair(left, right) =>
+                  val expanded = lambda("x","y","f")("f".call("x","y")).call(left, right)
+                  reduce(thunk(ctx, expanded))
                 case Apply(f, x) =>
                   def asFunc(r: Reduced): Result[Applicable] = r match {
                     case f: Applicable => Result(f)

@@ -72,7 +72,7 @@ package object parlang
       lazy val freeVars: Set[Name] = f.freeVars ++ x.freeVars
     }
 
-    case class Pair(left: PExpr, right: PExpr) extends Reduced {
+    case class Pair(left: PExpr, right: PExpr) extends PExpr {
       lazy val freeVars: Set[Name] = left.freeVars ++ right.freeVars
     }
   }

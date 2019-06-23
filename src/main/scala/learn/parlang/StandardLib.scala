@@ -24,13 +24,13 @@ object StandardLib {
       })
   }
 
-  val fst = func("fst") {
-    case Pair(left, _) => Result(left)
-  }
-
-  val snd = func("snd") {
-    case Pair(_, right) => Result(right)
-  }
+//  val fst = func("fst") {
+//    case Pair(left, _) => Result(left)
+//  }
+//
+//  val snd = func("snd") {
+//    case Pair(_, right) => Result(right)
+//  }
 
   val choose = func("choose") {
     case BoolValue(b) =>
@@ -77,10 +77,10 @@ object StandardLib {
   }
 
   val eager: EagerFunc = func("eager") {
-    case Pair(left, right) =>
-      Result {
-        eagerPair.call(eager call left).call(eager call right)
-      }
+//    case Pair(left, right) =>
+//      Result {
+//        eagerPair.call(eager call left).call(eager call right)
+//      }
     case other => Result(other)
   }
 
@@ -99,8 +99,8 @@ object StandardLib {
                 isUnit.call("xs"),
                 "x0",
                 "f".call(
-                  fst.call("xs"),
-                  "foldr".call("f", "x0", snd.call("xs")),
+                  "fst".call("xs"),
+                  "foldr".call("f", "x0", "snd".call("xs")),
                 ),
               )
             })),
@@ -111,8 +111,8 @@ object StandardLib {
     Seq(
       plus,
       times,
-      fst,
-      snd,
+//      fst,
+//      snd,
       choose,
       isZero,
       isUnit,
@@ -127,10 +127,17 @@ object StandardLib {
 
   val all: PContext = {
     val defs = Seq(
+      "left x y = x",
+      "right x y = y",
+      "fst p = p left",
+      "snd p = p right",
       "map f xs = if isUnit xs then unit else [x1, map f rest] " +
         "where {x1 = f (fst xs); rest = snd xs}",
       "take n xs = if or (isUnit xs) (isZero n) then unit else [fst xs, take (plus n -1) (snd xs)]",
-      "nats = [1, map (plus 1) nats]"
+      "nats = [1, map (plus 1) nats]",
+      "get n xs = if (isZero n) then fst xs else get (plus n -1) (snd xs)",
+      "zipWith f xs ys = if or (isUnit xs) (isUnit ys) then unit else " +
+        "[f (fst xs) (fst ys), zipWith f (snd xs) (snd ys)]"
     )
     val bindings = defs.map { s =>
       parseConsoleInput(s)

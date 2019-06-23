@@ -59,8 +59,14 @@ object EvaluationTests extends TestSuite {
       }
 
       test("nats performances") {
-        val program = parseExprGet("eager (take 10 nats) where nats = [0, map (plus 1) nats]")
-        checkResult(program, list((0 until 10).map(intValue): _*)) ==> None
+        val program = parseExprGet("get 10 nats where nats = [0, map (plus 1) nats]")
+        checkResult(program, 10) ==> None
+      }
+
+      test("fibs performances") {
+        val program = parseExprGet(
+          "get 3 fibs where fibs = [1, 2, zipWith plus (snd fibs) (snd (snd fibs))]")
+        checkResult(program, 3) ==> None
       }
 
       test("repeat 1 2") {
