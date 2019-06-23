@@ -41,7 +41,7 @@ package object parlang
       case Apply(f, x) =>
         s"($f $x)"
       case Pair(x, y) =>
-        s"($x, $y)"
+        s"[$x, $y]"
       case at: AtomValue => at.show
       case f: EagerFunc  => f.toString
     }

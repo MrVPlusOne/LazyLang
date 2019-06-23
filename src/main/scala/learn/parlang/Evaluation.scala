@@ -11,9 +11,9 @@ object Evaluation {
 
   type WithTrace[T] = ReaderT[Eval, StackTrace, T]
 
-  case class TracedError(trace: StackTrace, message: String) {
-    override def toString: Name = {
-      message + "\n" + trace.mkString("\n")
+  case class TracedError(trace: StackTrace, message: String) extends Error {
+    override def toString: String = {
+      "Reduction error: " + message + "\n" + trace.mkString("\n")
     }
   }
 
@@ -134,7 +134,7 @@ object Evaluation {
         Left(
           TracedError(
             List(),
-            s"Undefined vars: ${undefinedVars.mkString(", ")}",
+            s"Checking failed, undefined vars: ${undefinedVars.mkString(", ")}",
           ),
         )
       else {

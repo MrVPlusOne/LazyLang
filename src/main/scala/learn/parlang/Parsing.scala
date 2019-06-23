@@ -5,19 +5,37 @@ import learn.parlang.PExpr.Binding
 
 object Parsing {
 
-  type ParsingError = String
+  case class ParsingError(message: String) extends Error {
+    override def toString: Name = s"Parsing error: $message"
+  }
 
   private object Impl {
     import fastparse._
     import fastparse.ScalaWhitespace._
 
+    val keywordList: Set[String] = Set(
+      "where",
+      "lam",
+      "True",
+      "False",
+      "if",
+      "then",
+      "else",
+    )
+
     def letter[_: P]: P[Unit] = P(lowercase | uppercase)
+
     def lowercase[_: P]: P[Unit] = P(CharIn("a-z"))
+
     def uppercase[_: P]: P[Unit] = P(CharIn("A-Z"))
+
     def digit[_: P]: P[Unit] = P(CharIn("0-9"))
+
     def decimalinteger[_: P]: P[Int] =
       P(nonzerodigit ~ digit.rep | "0").!.map(_.toInt)
+
     def nonzerodigit[_: P]: P[Unit] = P(CharIn("1-9"))
+
     def pInt[_: P]: P[AtomValue] =
       pythonparse.Lexical.integer
         .map(_.toInt.pipe(intValue))
@@ -31,12 +49,6 @@ object Parsing {
     def pAtom[_: P]: P[AtomValue] = P {
       pInt | pBool
     }
-
-    val keywordList: Set[String] = Set(
-      "where",
-      "lam",
-      "True", "False"
-    )
 
     def pIdentifier[_: P]: P[String] = {
       import fastparse.NoWhitespace._
@@ -61,17 +73,18 @@ object Parsing {
           case (vars, e) => lambda(vars: _*)(e)
         }
 
-    def pPaired[_: P]: P[PExpr] =
-      P("(" ~ pExpr.rep(0, ",") ~ ")")
+    def pIf[_: P]: P[PExpr] =
+      P("if" ~ pExpr ~ "then" ~ pExpr ~ "else" ~ pExpr)
+        .map { case (e1, e2, e3) => "choose".call(e1, e2, e3) }
+
+    def pTuple[_: P]: P[PExpr] =
+      P("[" ~ pExpr.rep(0, ",") ~ "]")
         .map { xs =>
-          ((xs: @unchecked) match {
-            case Seq(e)    => e
-            case Seq(a, b) => pair(a, b)
-          }).asInstanceOf[PExpr]  // IDE bug
+          list(xs: _*)
         }
 
     def pSeg[_: P]: P[PExpr] = P {
-      pLambda | pList | pAtom | pVar | pPaired
+      pLambda | pIf | pList | pAtom | pVar | pTuple | P("(" ~ pExpr ~ ")")
     }
 
     def pApply[_: P]: P[PExpr] = P {
@@ -105,7 +118,7 @@ object Parsing {
         case more    => Left(more.toList)
       }
 
-    def pExpr[_: P]: P[PExpr] = P {
+    def pExpr[_: P]: P[PExpr] = {
       pWhere
     }
 
@@ -116,7 +129,7 @@ object Parsing {
       fastparse.parse(text, Impl.pExpr(_)) match {
         case Parsed.Success(value, _) => Right(value)
         case f: Parsed.Failure =>
-          Left(f.trace().longAggregateMsg + "\nText:\n" + text)
+          Left(ParsingError(f.trace().longAggregateMsg + "\nText:\n" + text))
       }
     }
   }
@@ -125,7 +138,7 @@ object Parsing {
 
     println {
       parseExpr(
-        "(-96 where {gu = m; f = HQz; g4Nw = k}) 3",
+        "if greater x 1 then 5 else 6 where x = 10",
       )
     }
   }
