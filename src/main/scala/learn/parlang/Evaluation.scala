@@ -105,9 +105,6 @@ object Evaluation {
                     case Some(t1) => reduce(t1)
                     case None     => Result.fail(s"Undefined var: $id.")
                   }
-                case Pair(left, right) =>
-                  val expanded = lambda("x","y","f")("f".call("x","y")).call(left, right)
-                  reduce(thunk(ctx, expanded))
                 case Apply(f, x) =>
                   def asFunc(r: Reduced): Result[Applicable] = r match {
                     case f: Applicable => Result(f)

@@ -1,6 +1,5 @@
 package learn.parlang
 
-import learn.parlang.PExpr.Pair
 import learn.parlang.Reduced.{EagerFunc, func}
 
 //noinspection TypeAnnotation
@@ -84,8 +83,6 @@ object StandardLib {
     case other => Result(other)
   }
 
-  val mkPair = "x" ~> ("y" ~> pair("x", "y"))
-
   /* foldr f z []     = z
    * foldr f z (x:xs) = f x (foldr f z xs)
    *  */
@@ -127,6 +124,7 @@ object StandardLib {
 
   val all: PContext = {
     val defs = Seq(
+      s"$pairName = lam x y f. f x y",
       "left x y = x",
       "right x y = y",
       "fst p = p left",

@@ -65,7 +65,7 @@ object EvaluationTests extends TestSuite {
 
       test("fibs performances") {
         val program = parseExprGet(
-          "get 3 fibs where fibs = [1, 2, zipWith plus (snd fibs) (snd (snd fibs))]")
+          "get 3 fibs where fibs = [1, 1, zipWith plus fibs (snd fibs)]")
         checkResult(program, 3) ==> None
       }
 

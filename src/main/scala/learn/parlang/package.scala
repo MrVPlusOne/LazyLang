@@ -40,8 +40,6 @@ package object parlang
         s"(λ $v. $expr)"
       case Apply(f, x) =>
         s"($f $x)"
-      case Pair(x, y) =>
-        s"[$x, $y]"
       case at: AtomValue => at.show
       case f: EagerFunc  => f.toString
     }
@@ -70,10 +68,6 @@ package object parlang
 
     case class Apply(f: PExpr, x: PExpr) extends PExpr {
       lazy val freeVars: Set[Name] = f.freeVars ++ x.freeVars
-    }
-
-    case class Pair(left: PExpr, right: PExpr) extends PExpr {
-      lazy val freeVars: Set[Name] = left.freeVars ++ right.freeVars
     }
   }
 
@@ -141,7 +135,9 @@ package object parlang
   def lets(bindings: (Name, PExpr)*)(body: PExpr): PExpr =
     Where(body, bindings.toList)
 
-  def pair(x: PExpr, y: PExpr): PExpr = Pair(x, y)
+  val pairName = "Pair"
+
+  def pair(x: PExpr, y: PExpr): PExpr = pairName.call(x, y)
 
   val unit: AtomValue = AtomValue.UnitValue
 
