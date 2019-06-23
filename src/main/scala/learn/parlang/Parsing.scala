@@ -18,6 +18,7 @@ object Parsing {
       "lam",
       "True",
       "False",
+      "unit",
       "if",
       "then",
       "else",
@@ -47,7 +48,7 @@ object Parsing {
         .opaque("<boolean>")
 
     def pAtom[_: P]: P[AtomValue] = P {
-      pInt | pBool
+      pInt | pBool | P("unit").map(_ => unit)
     }
 
     def pIdentifier[_: P]: P[String] = {
@@ -60,7 +61,7 @@ object Parsing {
     def pVar[_: P]: P[PExpr] = P(pIdentifier).map(varFromString)
 
     def pWhere[_: P]: P[PExpr] =
-      P(pApply ~ ("where" ~/ pClauses).?)
+      P(pIf ~ ("where" ~/ pClauses).?)
         .map {
           case (e, None) => e
           case (e, Some(clauses)) =>
@@ -74,8 +75,8 @@ object Parsing {
         }
 
     def pIf[_: P]: P[PExpr] =
-      P("if" ~ pExpr ~ "then" ~ pExpr ~ "else" ~ pExpr)
-        .map { case (e1, e2, e3) => "choose".call(e1, e2, e3) }
+      P("if" ~ pExpr ~ "then" ~ pExpr ~ "else" ~ pIf)
+        .map { case (e1, e2, e3) => "choose".call(e1, e2, e3) } | pApply
 
     def pTuple[_: P]: P[PExpr] =
       P("[" ~ pExpr.rep(0, ",") ~ "]")
@@ -84,7 +85,7 @@ object Parsing {
         }
 
     def pSeg[_: P]: P[PExpr] = P {
-      pLambda | pIf | pList | pAtom | pVar | pTuple | P("(" ~ pExpr ~ ")")
+      pLambda | pList | pAtom | pVar | pTuple | P("(" ~ pExpr ~ ")")
     }
 
     def pApply[_: P]: P[PExpr] = P {
@@ -94,7 +95,14 @@ object Parsing {
     }
 
     def pList[_: P]: P[PExpr] =
-      P("[" ~ pExpr.rep(sep = ","./) ~ "]").map(list(_: _*))
+      P("[" ~ pExpr.rep(sep = ","./) ~ "]")
+        .map(_.toVector).map {
+        case Vector() => unit
+        case Vector(a: PExpr) => a
+        case other =>
+          val Vector(a, b) = other.takeRight(2)
+          other.dropRight(2).foldRight(pair(a, b))(pair)
+      }
 
     def pClauses[_: P]: P[List[Binding]] = P {
       ("{" ~ pBinding.rep(sep = ";"./).map(_.toList) ~ "}") |
@@ -130,6 +138,13 @@ object Parsing {
         case Parsed.Success(value, _) => Right(value)
         case f: Parsed.Failure =>
           Left(ParsingError(f.trace().longAggregateMsg + "\nText:\n" + text))
+      }
+    }
+
+    def parseExprGet(text: String): PExpr = {
+      parseExpr(text) match {
+        case Right(v) => v
+        case Left(e) => throw e
       }
     }
   }

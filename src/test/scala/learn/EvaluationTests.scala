@@ -51,6 +51,12 @@ object EvaluationTests extends TestSuite {
         }
       }
 
+      test("fib") {
+        val program = parseExprGet("fib where fib n = " +
+          "if greater n 1 then plus (fib (plus n -1)) (fib (plus n -2)) else 1")
+        checkResult(program.call(5), 8) ==> None
+      }
+
       test("repeat 1 2") {
         lazy val xs: LazyList[PExpr] = LazyList.cons(intValue(1), LazyList.cons(intValue(2),  xs))
         checkResult(let("xs", "mkPair".call(1, "mkPair".call(2, "xs"))) {

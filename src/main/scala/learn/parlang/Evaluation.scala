@@ -60,6 +60,10 @@ object Evaluation {
     import PExpr.{Apply, Lambda, Var, Where}
     import Reduced.{Applicable, EagerFunc}
 
+    def parseEval(code: String): Either[Error, ReducedThunk] = {
+      parseExpr(code).flatMap(eval(StandardLib.all))
+    }
+
     def eval(ctx: PContext, maxSteps: Int = 5000, memoizing: Boolean = true)(
         e: PExpr,
     ): Either[TracedError, ReducedThunk] = {

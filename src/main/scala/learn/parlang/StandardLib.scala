@@ -146,7 +146,12 @@ object StandardLib {
       eagerPair,
       eager,
     ).map(p => p.name -> p)
-      ++ Map("map" -> map, "foldr" -> foldr, "mkPair" -> mkPair)).map {
+      ++ Map(
+      "map" -> map,
+      "foldr" -> foldr,
+      "mkPair" -> mkPair,
+      "take" -> take,
+    )).map {
       case (n, f) =>
         n -> thunk(Map(), f)
     }.toMap
