@@ -1,6 +1,7 @@
 package learn.parlang
 
 import cats.implicits._
+
 import scala.util.chaining._
 import cats.data.{EitherT, ReaderT}
 import cats.Eval
@@ -11,9 +12,19 @@ object Evaluation {
 
   type WithTrace[T] = ReaderT[Eval, StackTrace, T]
 
+  val maxTraceToShow = 20
+
   case class TracedError(trace: StackTrace, message: String) extends Error {
     override def toString: String = {
-      "Reduction error: " + message + "\n" + trace.mkString("\n")
+      val exceed = trace.length - maxTraceToShow
+      val traceStr =
+        if (exceed <= 0) trace.mkString("\n")
+        else {
+          trace
+            .take(maxTraceToShow)
+            .mkString("\n") + s"\n ... ($exceed more hidden) ..."
+        }
+      "Reduction error: " + message + "\n" + traceStr
     }
   }
 
@@ -40,6 +51,8 @@ object Evaluation {
 
   type PContext = Map[Name, Thunk]
 
+  type Binding = (Name, PExpr)
+
   type ReducedThunk = ThunkValue[Reduced]
 
   private[parlang] case class ThunkValue[+V](ctx: PContext, expr: V) {
@@ -64,7 +77,12 @@ object Evaluation {
       parseExpr(code).flatMap(eval(StandardLib.all))
     }
 
-    def eval(ctx: PContext, maxSteps: Int = 5000, memoizing: Boolean = true)(
+    def eval(
+              ctx: PContext,
+              maxSteps: Int = 10000,
+              memoizing: Boolean = true,
+              evalCallback: Int => Unit = _ => (),
+            )(
         e: PExpr,
     ): Either[TracedError, ReducedThunk] = {
       var steps = 0
@@ -72,7 +90,7 @@ object Evaluation {
       def reduce(t: Thunk): Result[ReducedThunk] = {
         steps += 1
         if (steps > maxSteps)
-          Result.fail("Max steps hit.")
+          Result.fail(s"Max steps ($maxSteps) hit.")
         else
           Result.defer {
             val result = Result.addToTrace[ReducedThunk](t.value) {
@@ -146,10 +164,24 @@ object Evaluation {
         reduce(thunk(ctx1, e)).value
           .run(List())
           .value
-//          .tap { _ =>
-//            println(s"reduction steps: $steps")
-//          }
+          .tap { _ =>
+            evalCallback(steps)
+          }
       }
+    }
+
+    /** also useful for REPL's let bindings */
+    def newCtxFromBindings(ctx: PContext, bindings: Seq[Binding]): PContext = {
+      val emptyThunks = bindings.map {
+        case (v, _) =>
+          v -> new Thunk(null) // initialize thunks later
+      }
+      val ctx1: PContext = ctx ++ emptyThunks
+      bindings.foreach {
+        case (v, e1) =>
+          ctx1(v).value = ThunkValue(ctx1, e1)
+      }
+      ctx1
     }
 
   }

@@ -52,7 +52,6 @@ package object parlang
   sealed trait Reduced extends PExpr
 
   private[parlang] object PExpr {
-    type Binding = (Name, PExpr)
 
     case class Var(id: Name) extends PExpr {
       lazy val freeVars: Set[Name] = Set(id)

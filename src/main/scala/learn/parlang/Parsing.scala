@@ -1,7 +1,6 @@
 package learn.parlang
 
-import fastparse.Parsed
-import learn.parlang.PExpr.Binding
+import learn.parlang.Evaluation.Binding
 
 object Parsing {
 
@@ -9,20 +8,20 @@ object Parsing {
     override def toString: Name = s"Parsing error: $message"
   }
 
+  val keywordList: Set[String] = Set(
+    "where",
+    "lam",
+    "True",
+    "False",
+    "unit",
+    "if",
+    "then",
+    "else",
+  )
+
   private object Impl {
     import fastparse._
     import fastparse.ScalaWhitespace._
-
-    val keywordList: Set[String] = Set(
-      "where",
-      "lam",
-      "True",
-      "False",
-      "unit",
-      "if",
-      "then",
-      "else",
-    )
 
     def letter[_: P]: P[Unit] = P(lowercase | uppercase)
 
@@ -96,13 +95,14 @@ object Parsing {
 
     def pList[_: P]: P[PExpr] =
       P("[" ~ pExpr.rep(sep = ","./) ~ "]")
-        .map(_.toVector).map {
-        case Vector() => unit
-        case Vector(a: PExpr) => a
-        case other =>
-          val Vector(a, b) = other.takeRight(2)
-          other.dropRight(2).foldRight(pair(a, b))(pair)
-      }
+        .map(_.toVector)
+        .map {
+          case Vector() => unit
+          case Vector(a: PExpr) => a
+          case other =>
+            val Vector(a, b) = other.takeRight(2)
+            other.dropRight(2).foldRight(pair(a, b))(pair)
+        }
 
     def pClauses[_: P]: P[List[Binding]] = P {
       ("{" ~ pBinding.rep(sep = ";"./).map(_.toList) ~ "}") |
@@ -130,16 +130,35 @@ object Parsing {
       pWhere
     }
 
+    def pInput[_: P]: P[Either[Binding, PExpr]] = {
+      (pBinding.map(Left(_)) | pExpr.map(Right(_))) ~ End
+    }
+
   }
 
   trait ParsingAPI {
-    def parseExpr(text: String): Either[ParsingError, PExpr] = {
-      fastparse.parse(text, Impl.pExpr(_)) match {
+
+    import fastparse._
+
+    private def parseWithError[A](
+                                   text: String,
+                                   parser: P[_] => P[A],
+                                 ): Either[ParsingError, A] = {
+      parse(text, parser) match {
         case Parsed.Success(value, _) => Right(value)
         case f: Parsed.Failure =>
           Left(ParsingError(f.trace().longAggregateMsg + "\nText:\n" + text))
       }
     }
+
+    def parseConsoleInput(
+                           text: String,
+                         ): Either[ParsingError, Either[Binding, PExpr]] =
+      parseWithError(text, Impl.pInput(_))
+
+    def parseExpr(text: String): Either[ParsingError, PExpr] =
+      parseWithError(text, Impl.pExpr(_))
+
 
     def parseExprGet(text: String): PExpr = {
       parseExpr(text) match {

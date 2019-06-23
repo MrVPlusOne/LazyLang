@@ -6,11 +6,12 @@ import utest._
 import Evaluation.{ReducedThunk, TracedError}
 
 object EvaluationTests extends TestSuite {
-  case class WrongResult(expect: Reduced, get: ReducedThunk, program: PExpr)
+
+  case class WrongResult(expect: PExpr, get: ReducedThunk, program: PExpr)
   type TestError = Either[TracedError, WrongResult]
 
-  def checkResult(program: PExpr, expect: Reduced): Option[TestError] = {
-    eval(StandardLib.all)(program) match {
+  def checkResult(program: PExpr, expect: PExpr): Option[TestError] = {
+    eval(StandardLib.all, maxSteps = 4000)(program) match {
       case Left(error) => Some(error.asLeft)
       case Right(v) =>
         if (v.expr != expect) Some(WrongResult(expect, v, program).asRight)
@@ -52,9 +53,14 @@ object EvaluationTests extends TestSuite {
       }
 
       test("fib") {
-        val program = parseExprGet("fib where fib n = " +
-          "if greater n 1 then plus (fib (plus n -1)) (fib (plus n -2)) else 1")
-        checkResult(program.call(5), 8) ==> None
+        val program = parseExprGet("fib 5 where fib n = " +
+          "(if greater n 1 then plus n1 (fib (plus n -2)) else 1 where n1 = fib (plus n -1))")
+        checkResult(program, 8) ==> None
+      }
+
+      test("nats performances") {
+        val program = parseExprGet("eager (take 10 nats) where nats = [0, map (plus 1) nats]")
+        checkResult(program, list((0 until 10).map(intValue): _*)) ==> None
       }
 
       test("repeat 1 2") {

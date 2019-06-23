@@ -1,6 +1,6 @@
 package learn.parlang
 
-import learn.parlang.PExpr.Binding
+import learn.parlang.Evaluation.Binding
 import org.scalacheck.Gen
 import org.scalacheck.Gen._
 
@@ -34,12 +34,14 @@ object RandomExpr {
       } yield xs
   }
 
-  val nameGen: Gen[Name] =
-    for {
+  val nameGen: Gen[Name] = {
+    val randomName = for {
       h <- alphaChar
       len <- choose(0, 8)
       tail <- resize(len, alphaNumStr)
     } yield String.valueOf(h +: tail)
+    randomName.retryUntil(!Parsing.keywordList.contains(_))
+  }
 
   val varGen: Gen[PExpr] = nameGen.map(varFromString)
 
