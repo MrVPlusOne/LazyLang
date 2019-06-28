@@ -12,25 +12,24 @@ object REPL {
       Console.flush()
 
       val code = Console.in.readLine()
-      parseConsoleInput(code).flatMap { p =>
-        println(Console.BLUE + "(parsed) " + p)
-        p match {
-          case Left(name -> expr) =>
-            ctx = newCtxFromBindings(ctx, Seq(name -> expr))
-            println(Console.YELLOW + s"$name defined.")
-            Right(())
-          case Right(e) =>
-            eval(
-              ctx,
-              evalCallback =
-                n => println(Console.BLUE + s"(evaluated in $n steps)"),
-            )(e).map { r =>
-              val resultName = s"res$resultId"
-              ctx = ctx.updated(resultName, Evaluation.thunk(r.ctx, r.expr))
-              println(Console.GREEN + s"$resultName = " + r.expr)
-              resultId += 1
-            }
-        }
+      parseConsoleInput(code).flatMap {
+        case Left(name -> expr) =>
+          println(Console.BLUE + s"(binding parsed) $name := $expr")
+          ctx = newCtxFromBindings(ctx, Seq(name -> expr))
+          println(Console.YELLOW + s"$name defined.")
+          Right(())
+        case Right(e) =>
+          println(Console.BLUE + s"(expr parsed) $e")
+          eval(
+            ctx,
+            evalCallback =
+              n => println(Console.BLUE + s"(evaluated in $n steps)"),
+          )(e).map { r =>
+            val resultName = s"res$resultId"
+            ctx = ctx.updated(resultName, Evaluation.thunk(r.ctx, r.expr))
+            println(Console.GREEN + s"$resultName = " + r.expr)
+            resultId += 1
+          }
       } match {
         case Right(_) =>
         case Left(e) =>

@@ -1,9 +1,9 @@
 package vplusone
 
-import lazylang._
+import vplusone.lazylang._
 
 //noinspection TypeAnnotation
-object ParLangExample {
+object LazyLangExamples {
   import StandardLib._
 
   def cond(b: PExpr, e1: PExpr, e2: PExpr): PExpr =

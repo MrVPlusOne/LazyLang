@@ -21,7 +21,7 @@ object EvaluationTests extends TestSuite {
 
   val tests = Tests {
     test("example programs") {
-      import ParLangExample._
+      import LazyLangExamples._
 
       def fact(n: Int): Int =
         if (n > 0) n * fact(n - 1) else 1
