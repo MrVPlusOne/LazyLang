@@ -1,4 +1,4 @@
-package learn.parlang
+package vplusone.lazylang
 
 import cats.implicits._
 import cats.data.{EitherT, ReaderT}
@@ -28,7 +28,7 @@ object Evaluation {
 
   type Result[T] = EitherT[WithTrace, TracedError, T]
 
-  private[parlang] object Result {
+  private[lazylang] object Result {
     def fail[T](message: String): Result[T] =
       EitherT(ReaderT { trace =>
         Eval.now(TracedError(trace, message).asLeft)
@@ -53,23 +53,23 @@ object Evaluation {
 
   type ReducedThunk = ThunkValue[Reduced]
 
-  private[parlang] case class ThunkValue[+V <: PExpr](ctx: PContext, expr: V) {
+  private[lazylang] case class ThunkValue[+V <: PExpr](ctx: PContext, expr: V) {
     override def toString: Name = {
       val ctxStr = expr.freeVars
         .map { k =>
-          s"$k -> ${ctx(k).value.expr}"
+          s"$k -> ${ctx.get(k).map(_.value.expr).getOrElse("Undefined")}"
         }
         .mkString(", ")
       s"$expr     | ctx: $ctxStr"
     }
   }
 
-  private[parlang] class Thunk(var value: ThunkValue[PExpr]) {
+  private[lazylang] class Thunk(var value: ThunkValue[PExpr]) {
     def expr: PExpr = value.expr
     def ctx: PContext = value.ctx
   }
 
-  private[parlang] def thunk(ctx: PContext, expr: PExpr) =
+  private[lazylang] def thunk(ctx: PContext, expr: PExpr) =
     new Thunk(ThunkValue(ctx, expr))
 
   trait EvaluationAPI {
@@ -155,14 +155,10 @@ object Evaluation {
       }
 
       val undefinedVars = e.freeVars -- ctx.keySet
-      if (undefinedVars.nonEmpty)
-        Left(
-          TracedError(
-            List(),
-            s"Checking failed, undefined vars: ${undefinedVars.mkString(", ")}",
-          ),
-        )
-      else {
+      if (undefinedVars.nonEmpty) {
+        val msg = s"Checking failed, undefined vars: $undefinedVars"
+        Left(TracedError(List(), msg))
+      } else {
         val ctx1 = e.freeVars.map(k => k -> ctx(k)).toMap
         reduce(thunk(ctx1, e)).value
           .run(List())

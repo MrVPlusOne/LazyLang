@@ -1,6 +1,6 @@
-package learn
+package vplusone
 
-import parlang._
+import lazylang._
 import cats.implicits._
 import utest._
 import Evaluation.{ReducedThunk, TracedError}
@@ -39,10 +39,10 @@ object EvaluationTests extends TestSuite {
       }
 
       test("foldr") {
-        val input = list(1, 2, 3, 4).asInstanceOf[Reduced]
+        val input = list(1, 2, 3, 4)
         checkResult(
-          "eager" call foldrPairExpr.call(input),
-          input,
+          "get".call(3, foldrPairExpr.call(input)),
+          4,
         ) ==> None
       }
 
@@ -53,28 +53,24 @@ object EvaluationTests extends TestSuite {
       }
 
       test("fib") {
-        val program = parseExprGet("fib 5 where fib n = " +
-          "(if greater n 1 then plus n1 (fib (plus n -2)) else 1 where n1 = fib (plus n -1))")
+        val program = parseExprGet(
+          "fib 5 where fib n = " +
+            "(if greater n 1 then plus n1 (fib (plus n -2)) else 1 where n1 = fib (plus n -1))",
+        )
         checkResult(program, 8) ==> None
       }
 
       test("nats performances") {
-        val program = parseExprGet("get 10 nats where nats = [0, map (plus 1) nats]")
+        val program =
+          parseExprGet("get 10 nats where nats = [0, map (plus 1) nats]")
         checkResult(program, 10) ==> None
       }
 
       test("fibs performances") {
         val program = parseExprGet(
-          "get 3 fibs where fibs = [1, 1, zipWith plus fibs (snd fibs)]")
+          "get 3 fibs where fibs = [1, 1, zipWith plus fibs (snd fibs)]",
+        )
         checkResult(program, 3) ==> None
-      }
-
-      test("repeat 1 2") {
-        lazy val xs: LazyList[PExpr] = LazyList.cons(intValue(1), LazyList.cons(intValue(2),  xs))
-        checkResult(let("xs", "mkPair".call(1, "mkPair".call(2, "xs"))) {
-          import StandardLib._
-          eager call "take".call(10, "xs")
-        }, list(xs.take(10) :_*).asInstanceOf[Reduced]) ==> None
       }
 
       test("out of scope error") {

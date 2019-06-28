@@ -1,6 +1,6 @@
-package learn.parlang
+package vplusone.lazylang
 
-import learn.parlang.Evaluation.Binding
+import vplusone.lazylang.Evaluation.Binding
 
 object Parsing {
 
@@ -46,8 +46,12 @@ object Parsing {
         .map(boolValue)
         .opaque("<boolean>")
 
+    def pString[_: P]: P[AtomValue] =
+      P("'" ~ CharsWhile(_ != '\'').!.? ~ "'")
+        .map(_.getOrElse("") pipe stringValue)
+
     def pAtom[_: P]: P[AtomValue] = P {
-      pInt | pBool | P("unit").map(_ => unit)
+      pInt | pBool | pString | P("unit").map(_ => unit)
     }
 
     def pIdentifier[_: P]: P[String] = {
@@ -97,7 +101,7 @@ object Parsing {
       P("[" ~ pExpr.rep(sep = ","./) ~ "]")
         .map(_.toVector)
         .map {
-          case Vector() => unit
+          case Vector()         => unit
           case Vector(a: PExpr) => a
           case other =>
             val Vector(a, b) = other.takeRight(2)
@@ -141,9 +145,9 @@ object Parsing {
     import fastparse._
 
     private def parseWithError[A](
-                                   text: String,
-                                   parser: P[_] => P[A],
-                                 ): Either[ParsingError, A] = {
+        text: String,
+        parser: P[_] => P[A],
+    ): Either[ParsingError, A] = {
       parse(text, parser) match {
         case Parsed.Success(value, _) => Right(value)
         case f: Parsed.Failure =>
@@ -152,8 +156,8 @@ object Parsing {
     }
 
     def parseConsoleInput(
-                           text: String,
-                         ): Either[ParsingError, Either[Binding, PExpr]] =
+        text: String,
+    ): Either[ParsingError, Either[Binding, PExpr]] =
       parseWithError(text, Impl.pInput(_))
 
     def parseExpr(text: String): Either[ParsingError, PExpr] =
@@ -162,7 +166,7 @@ object Parsing {
     def parseExprGet(text: String): PExpr = {
       parseExpr(text) match {
         case Right(v) => v
-        case Left(e) => throw e
+        case Left(e)  => throw e
       }
     }
   }
@@ -170,9 +174,7 @@ object Parsing {
   def main(args: Array[String]): Unit = {
 
     println {
-      parseExpr(
-        "if greater x 1 then 5 else 6 where x = 10",
-      )
+      parseExpr("if greater x 1 then 5 else 6 where x = 10")
     }
   }
 }

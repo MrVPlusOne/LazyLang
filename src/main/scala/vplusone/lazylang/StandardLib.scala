@@ -1,6 +1,6 @@
-package learn.parlang
+package vplusone.lazylang
 
-import learn.parlang.Reduced.{EagerFunc, func}
+import vplusone.lazylang.Reduced.{EagerFunc, func}
 
 //noinspection TypeAnnotation
 object StandardLib {
@@ -22,14 +22,6 @@ object StandardLib {
           Result(intValue(x * y))
       })
   }
-
-//  val fst = func("fst") {
-//    case Pair(left, _) => Result(left)
-//  }
-//
-//  val snd = func("snd") {
-//    case Pair(_, right) => Result(right)
-//  }
 
   val choose = func("choose") {
     case BoolValue(b) =>
@@ -66,56 +58,32 @@ object StandardLib {
       })
   }
 
-  val eagerPair = func("eagerPair") {
-    case x =>
-      Result {
-        func("eager1") {
-          case y => Result(pair(x, y))
-        }
-      }
+  val showAtom: EagerFunc = func("showAtom") {
+    case a: AtomValue => Result(stringValue(a.show))
   }
 
-  val eager: EagerFunc = func("eager") {
-//    case Pair(left, right) =>
-//      Result {
-//        eagerPair.call(eager call left).call(eager call right)
-//      }
-    case other => Result(other)
+  val isAtom = func("isAtom") {
+    case x => Result(x.isInstanceOf[AtomValue])
   }
 
-  /* foldr f z []     = z
-   * foldr f z (x:xs) = f x (foldr f z xs)
-   *  */
-  val foldr =
-    "foldr".where(
-      "foldr" ->
-        "f" ~>
-          ("x0" ~>
-            ("xs" ~> {
-              choose.call(
-                isUnit.call("xs"),
-                "x0",
-                "f".call(
-                  "fst".call("xs"),
-                  "foldr".call("f", "x0", "snd".call("xs")),
-                ),
-              )
-            })),
-    )
-
+  val strConcat = func("strConcat") {
+    case a: StrValue =>
+      Result(func(s"strConcat $a") {
+        case b: StrValue => Result(a.concat(b))
+      })
+  }
 
   val basicCtx: PContext =
     Seq(
       plus,
       times,
-//      fst,
-//      snd,
       choose,
       isZero,
       isUnit,
       greater,
-      eagerPair,
-      eager,
+      showAtom,
+      isAtom,
+      strConcat,
       or,
       not,
     ).map { p =>
@@ -129,18 +97,26 @@ object StandardLib {
       "right x y = y",
       "fst p = p left",
       "snd p = p right",
+
+      "showList x = if isUnit x then 'unit' else wrap (strConcat (strConcat head ', ') tail) " +
+        "where {head = showAtom (fst x); tail = showList (snd x); " +
+        "  wrap s = strConcat (strConcat '[' s) ']'}",
+
       "map f xs = if isUnit xs then unit else [x1, map f rest] " +
         "where {x1 = f (fst xs); rest = snd xs}",
       "take n xs = if or (isUnit xs) (isZero n) then unit else [fst xs, take (plus n -1) (snd xs)]",
+      "foldr f z xs = if isUnit xs then unit else f (fst xs) (foldr f z (snd xs))",
+      "foldl f z xs = if isUnit xs then unit else foldl f (f z (fst xs)) (snd xs)",
       "nats = [1, map (plus 1) nats]",
       "get n xs = if (isZero n) then fst xs else get (plus n -1) (snd xs)",
       "zipWith f xs ys = if or (isUnit xs) (isUnit ys) then unit else " +
-        "[f (fst xs) (fst ys), zipWith f (snd xs) (snd ys)]"
+        "[f (fst xs) (fst ys), zipWith f (snd xs) (snd ys)]",
     )
     val bindings = defs.map { s =>
       parseConsoleInput(s)
         .getOrElse(throw new Error(s"Failed to parse lib def: $s"))
-        .left.getOrElse(throw new Error(s"Parsed as expression in lib def: $s"))
+        .left
+        .getOrElse(throw new Error(s"Parsed as expression in lib def: $s"))
     }
     newCtxFromBindings(basicCtx, bindings)
   }

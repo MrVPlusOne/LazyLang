@@ -1,6 +1,6 @@
-package learn
+package vplusone
 
-import parlang._
+import lazylang._
 
 //noinspection TypeAnnotation
 object ParLangExample {
@@ -11,24 +11,12 @@ object ParLangExample {
 
   val incExpr = "x" ~> "plus".call(1).call("x")
 
-  val factExpr = {
-    val factBody = "x" ~>
-      "choose"
-        .call("greater".call("x").call(0))
-        .call(
-          "times"
-            .call("x")
-            .call(
-              "fact"
-                .call("plus".call("x").call(-1)),
-            ),
-        )
-        .call(1)
-    let("fact", factBody)("fact")
-  }
+  val factExpr =
+    parseExprGet("fact where fact x = if greater x 0 " +
+      "then times x (fact (plus x -1)) else 1")
 
   val foldrPairExpr = {
-    "xs" ~> "foldr".call("mkPair", unit, "xs")
+    "xs" ~> "foldr".call("Pair", unit, "xs")
   }
 
   val listExample = let("x", "plus".call(1).call(5))("print".call(pair("x", 2)))
@@ -55,7 +43,7 @@ object ParLangExample {
     val longList = list((0 to 20).map(intValue): _*)
 
     println {
-      eval(StandardLib.all)(eager call "take".call(8, longList))
+      eval(StandardLib.all)("showList" call "take".call(8, longList))
     }
   }
 

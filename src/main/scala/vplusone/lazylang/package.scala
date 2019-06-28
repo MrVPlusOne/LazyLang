@@ -1,17 +1,17 @@
-package learn
-
-import cats.implicits._
+package vplusone
 
 import scala.language.implicitConversions
-import learn.parlang.Evaluation._
-import learn.parlang.Parsing.ParsingAPI
+import cats.data.Chain
+import cats.implicits._
+import vplusone.lazylang.Evaluation._
+import vplusone.lazylang.Parsing.ParsingAPI
 
-package object parlang
+package object lazylang
     extends EvaluationAPI
     with util.ChainingSyntax
     with ParsingAPI {
-  import parlang.PExpr._
-  import learn.parlang.Reduced._
+  import lazylang.PExpr._
+  import lazylang.Reduced._
 
   type Name = String
 
@@ -49,7 +49,7 @@ package object parlang
 
   sealed trait Reduced extends PExpr
 
-  private[parlang] object PExpr {
+  private[lazylang] object PExpr {
 
     case class Var(id: Name) extends PExpr {
       lazy val freeVars: Set[Name] = Set(id)
@@ -71,7 +71,7 @@ package object parlang
     }
   }
 
-  private[parlang] object Reduced {
+  private[lazylang] object Reduced {
 
     /** Either a lambda or an external function */
     sealed trait Applicable extends Reduced
@@ -102,17 +102,23 @@ package object parlang
     def freeVars: Set[Name] = Set()
   }
 
-  private[parlang] object AtomValue {
+  private[lazylang] object AtomValue {
     case class IntValue(v: Int) extends AtomValue {
       def show: String = v.toString
     }
 
     case class BoolValue(b: Boolean) extends AtomValue {
-      def show: String = if(b) "True" else "False"
+      def show: String = if (b) "True" else "False"
     }
 
     case object UnitValue extends AtomValue {
       def show = "unit"
+    }
+
+    case class StrValue(repl: Chain[String]) extends AtomValue {
+      lazy val show: String = repl.mkString_("'", "", "'")
+
+      def concat(b: StrValue): StrValue = StrValue(repl ++ b.repl)
     }
   }
 
@@ -122,6 +128,8 @@ package object parlang
   implicit def intValue(v: Int): AtomValue = AtomValue.IntValue(v)
 
   implicit def boolValue(v: Boolean): AtomValue = AtomValue.BoolValue(v)
+
+  def stringValue(v: String): AtomValue = AtomValue.StrValue(Chain(v))
 
   implicit class LambdaBuilder(v: Name) {
     def ~>(e: PExpr): PExpr = Lambda(v, e)
