@@ -15,7 +15,7 @@ Evaluate an expression:
 res0 = 3
 ```
 
-Introduce a definition to the environment:
+Recursively define factorial:
 ```
 λ> fact x = if greater x 0 then times x (fact (plus x -1)) else 1
 (parsed) Left((fact,(λ x. (((choose ((greater x) 0)) ((times x) (fact ((plus x) -1)))) 1))))
@@ -35,15 +35,7 @@ Lists are just nested pairs (2-tuples):
 res2 = '[1, [2, [3, unit]]]'
 ```
 
-Get the 3rd element of a list:
-```$xslt
-λ> get 2 [1,2,3,4,unit]
-(parsed) Right(((get 2) ((Pair 1) ((Pair 2) ((Pair 3) ((Pair 4) unit))))))
-(evaluated in 134 steps)
-res3 = 3
-```
-
-Define an infinite list of fibonacci numbers:
+Define an infinite list of fibonacci numbers (that runs in linear time):
 ```$xslt
 λ> showList (take 10 fibs) where fibs = [1, 1, zipWith plus fibs (snd fibs)]
 (parsed) Right(((showList ((take 10) fibs)) where fibs = ((Pair 1) ((Pair 1) (((zipWith plus) fibs) (snd fibs))))))
@@ -51,3 +43,22 @@ Define an infinite list of fibonacci numbers:
 res4 = '[1, [1, [2, [3, [5, [8, [13, [21, [34, [55, unit]]]]]]]]]]'
 ```
 
+Evaluation trace is printed when encountering run-time errors:
+```$xslt
+λ> showList [1, 2, plus 1 'a', unit]
+(parsed) Right((showList ((Pair 1) ((Pair 2) ((Pair ((plus 1) 'a')) unit)))))
+(evaluated in 243 steps)
+Reduction error: Function undefined on value.
+((plus 1) 'a')     | ctx: plus -> <function: plus>
+x     | ctx: x -> ((plus 1) 'a')
+x     | ctx: x -> x
+((f x) y)     | ctx: f -> (λ x. (λ y. x)), x -> ((plus 1) 'a'), y -> unit
+(p left)     | ctx: p -> (λ f. ((f x) y)), left -> (λ x. (λ y. x))
+(fst x)     | ctx: fst -> (λ p. (p left)), x -> (λ f. ((f x) y))
+(showAtom (fst x))     | ctx: showAtom -> <function: showAtom>, fst -> (λ p. (p left)), x -> (λ f. ((f x) y))
+head     | ctx: head -> (showAtom (fst x))
+(strConcat head)     | ctx: strConcat -> <function: strConcat>, head -> (showAtom (fst x))
+((strConcat head) ', ')     | ctx: strConcat -> <function: strConcat>, head -> (showAtom (fst x))
+(strConcat ((strConcat head) ', '))     | ctx: strConcat -> <function: strConcat>, head -> (showAtom (fst x))
+ ... (30 more hidden) ...
+```
