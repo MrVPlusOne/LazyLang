@@ -12,8 +12,10 @@ object ParLangExample {
   val incExpr = "x" ~> "plus".call(1).call("x")
 
   val factExpr =
-    parseExprGet("fact where fact x = if greater x 0 " +
-      "then times x (fact (plus x -1)) else 1")
+    parseExprGet(
+      "fact where fact x = if greater x 0 " +
+        "then times x (fact (plus x -1)) else 1",
+    )
 
   val foldrPairExpr = {
     "xs" ~> "foldr".call("Pair", unit, "xs")
@@ -26,17 +28,16 @@ object ParLangExample {
       isZero.call("x"),
       true,
       cond(
-        isZero.call(
-          plus.call("x", -1)),
+        isZero.call(plus.call("x", -1)),
         false,
-        "isOdd".call(plus.call("x", -1))
-      )
+        "isOdd".call(plus.call("x", -1)),
+      ),
     )),
     "isOdd" -> ("x" ~> cond(
       isZero.call("x"),
       false,
-      "isEven".call(plus.call("x", -1))
-    ))
+      "isEven".call(plus.call("x", -1)),
+    )),
   )("isEven")
 
   def main(args: Array[String]): Unit = {

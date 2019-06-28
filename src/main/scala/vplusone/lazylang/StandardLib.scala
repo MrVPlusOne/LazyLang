@@ -97,11 +97,9 @@ object StandardLib {
       "right x y = y",
       "fst p = p left",
       "snd p = p right",
-
       "showList x = if isUnit x then 'unit' else wrap (strConcat (strConcat head ', ') tail) " +
         "where {head = showAtom (fst x); tail = showList (snd x); " +
         "  wrap s = strConcat (strConcat '[' s) ']'}",
-
       "map f xs = if isUnit xs then unit else [x1, map f rest] " +
         "where {x1 = f (fst xs); rest = snd xs}",
       "take n xs = if or (isUnit xs) (isZero n) then unit else [fst xs, take (plus n -1) (snd xs)]",
